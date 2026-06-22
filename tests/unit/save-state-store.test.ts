@@ -8,6 +8,7 @@ import {
   getSaveState,
   getSaveStatesForGame,
   getLatestSaveForGame,
+  validateSaveStateRecord,
   saveStateAtomically,
   deleteSaveState,
   deleteAllSaveStatesForGame,
@@ -15,12 +16,42 @@ import {
 } from "@/lib/storage/save-state-store";
 
 // Mock OPFS functions to avoid real file IO in tests
+const opfsMemory = new Map<string, Uint8Array>();
+
 vi.mock("@/lib/storage/opfs", () => ({
   saveStatePath: (gameId: string, slot: number) => `saves/${gameId}/slot-${slot}.sav`,
   screenshotPath: (gameId: string, slot: number) => `saves/${gameId}/slot-${slot}.png`,
-  deleteRecursive: vi.fn(() => Promise.resolve()),
-  writeStream: vi.fn(() => Promise.resolve({ path: "mock", size: 100 })),
-  readFile: vi.fn(() => Promise.resolve(new File([], "mock"))),
+  deleteRecursive: vi.fn((path: string) => {
+    opfsMemory.delete(path);
+    return Promise.resolve();
+  }),
+  writeStream: vi.fn(async (path: string, stream: ReadableStream<Uint8Array>) => {
+    const reader = stream.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        chunks.push(value);
+        size += value.byteLength;
+      }
+    }
+    const data = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      data.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    opfsMemory.set(path, data);
+    return { path, size };
+  }),
+  readFile: vi.fn((path: string) => {
+    const data = opfsMemory.get(path) ?? new Uint8Array();
+    const buffer = new ArrayBuffer(data.byteLength);
+    new Uint8Array(buffer).set(data);
+    return Promise.resolve(new File([buffer], path));
+  }),
 }));
 
 // Mock repositories to use fake-indexeddb
@@ -41,6 +72,10 @@ vi.mock("@/lib/storage/repositories", () => ({
 vi.mock("@/lib/security/hashing", () => ({
   sha256: vi.fn(() => Promise.resolve("fake-hash")),
 }));
+
+beforeEach(() => {
+  opfsMemory.clear();
+});
 
 describe("makeSaveStateId", () => {
   it("creates deterministic ID", () => {
@@ -102,6 +137,7 @@ describe("saveStateAtomically", () => {
     expect(record.gameId).toBe("game-1");
     expect(record.slot).toBe(SLOT_MANUAL);
     expect(record.fileSize).toBe(100);
+    expect(record.stateHash).toBe("fake-hash");
     expect(record.emulatorCore).toBe("jsdos");
     expect(record.emulatorVersion).toBe("v8.00");
     expect(record.gameFingerprint).toBe("fp-1");
@@ -222,6 +258,36 @@ describe("Latest save decision logic", () => {
     const latest = await getLatestSaveForGame("game-fallback");
     expect(latest).not.toBeNull();
     expect(latest?.slot).toBe(SLOT_AUTO);
+  });
+
+  it("returns null when compatibility metadata does not match", async () => {
+    await saveStateAtomically("game-incompat", SLOT_MANUAL, new ArrayBuffer(50), {
+      emulatorCore: "jsdos",
+      emulatorVersion: "v8.00",
+      gameFingerprint: "fp",
+      isAutoSave: false,
+    });
+
+    const latest = await getLatestSaveForGame("game-incompat", "pcsx", "v1", "different");
+    expect(latest).toBeNull();
+  });
+
+  it("validates save state hash and size before load", async () => {
+    const record = await saveStateAtomically("game-verify", SLOT_MANUAL, new ArrayBuffer(50), {
+      emulatorCore: "jsdos",
+      emulatorVersion: "v8.00",
+      gameFingerprint: "fp",
+      isAutoSave: false,
+    });
+
+    const result = await validateSaveStateRecord(record, {
+      gameId: "game-verify",
+      emulatorCore: "jsdos",
+      emulatorVersion: "v8.00",
+      gameFingerprint: "fp",
+    });
+
+    expect(result.ok).toBe(true);
   });
 });
 

@@ -1,10 +1,10 @@
 -- ============================================================
--- RETROCLOUD initial schema
+-- Jaňo še chce bavkac initial schema
 -- All tables RLS-enabled with policy: auth.uid() = user_id
 -- Per prompt section 21.
 -- ============================================================
 
--- 1. PROFILES — user profile metadata
+-- 1. PROFILES â€” user profile metadata
 create table if not exists public.profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   display_name text,
@@ -33,7 +33,7 @@ create policy "profiles_delete_own"
   on public.profiles for delete
   using (auth.uid() = user_id);
 
--- 2. GAME_LIBRARY_METADATA — synced game metadata (NOT ROM/ISO/BIOS)
+-- 2. GAME_LIBRARY_METADATA â€” synced game metadata (NOT ROM/ISO/BIOS)
 create table if not exists public.game_library_metadata (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -74,7 +74,7 @@ create policy "game_meta_delete_own"
   on public.game_library_metadata for delete
   using (auth.uid() = user_id);
 
--- 3. PLAY_SESSIONS — history of play sessions
+-- 3. PLAY_SESSIONS â€” history of play sessions
 create table if not exists public.play_sessions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -105,7 +105,7 @@ create policy "play_sessions_delete_own"
   on public.play_sessions for delete
   using (auth.uid() = user_id);
 
--- 4. SAVE_STATES — synced save state METADATA (actual save data stays in OPFS)
+-- 4. SAVE_STATES â€” synced save state METADATA (actual save data stays in OPFS)
 create table if not exists public.save_states (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -141,7 +141,7 @@ create policy "save_states_delete_own"
   on public.save_states for delete
   using (auth.uid() = user_id);
 
--- 5. CONTROLLER_PROFILES — synced controller mappings
+-- 5. CONTROLLER_PROFILES â€” synced controller mappings
 create table if not exists public.controller_profiles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -172,7 +172,7 @@ create policy "controller_profiles_delete_own"
   on public.controller_profiles for delete
   using (auth.uid() = user_id);
 
--- 6. EMULATOR_SETTINGS — per-platform emulator settings
+-- 6. EMULATOR_SETTINGS â€” per-platform emulator settings
 create table if not exists public.emulator_settings (
   user_id uuid not null references auth.users(id) on delete cascade,
   platform text primary key check (platform in ('dos', 'ps1', 'ps2')),
@@ -203,7 +203,7 @@ create policy "emulator_settings_delete_own"
   on public.emulator_settings for delete
   using (auth.uid() = user_id);
 
--- 7. USER_PREFERENCES — generic key/value preferences
+-- 7. USER_PREFERENCES â€” generic key/value preferences
 create table if not exists public.user_preferences (
   user_id uuid not null references auth.users(id) on delete cascade,
   key text not null,

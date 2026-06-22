@@ -44,18 +44,17 @@ import {
 } from "@/emulators/dos/jsdos-builder";
 import {
   readFile,
-  saveStatePath,
-  writeStream,
-  deleteRecursive,
 } from "@/lib/storage/opfs";
-import { sha256 } from "@/lib/security/hashing";
 import {
-  putSaveState,
-  getSaveStates,
-  deleteSaveState,
   saveStateRecordToStored,
 } from "@/lib/storage/repositories";
-import { v4 as uuid } from "uuid";
+import {
+  deleteSaveState,
+  getSaveState,
+  saveStateAtomically,
+  SLOT_AUTO,
+  validateSaveStateRecord,
+} from "@/lib/storage/save-state-store";
 import { extname } from "@/lib/security/path-normalizer";
 
 /** Cesta k js-dos skriptu v public/ priečinku. */
@@ -530,7 +529,7 @@ export class DosAdapter implements EmulatorAdapter {
       return;
     }
 
-    if (event.type === "pointer") {
+    if (event.type === "pointer" || event.type === "pointer-move") {
       // DOS mouse support — per prompt section 12.
       //
       // js-dos API (v8.x): ci.simulateMouseMotion(deltaX, deltaY) for relative movement,
@@ -552,6 +551,41 @@ export class DosAdapter implements EmulatorAdapter {
       }
       return;
     }
+
+    if (event.type === "pointer-button-down" || event.type === "pointer-button-up") {
+      try {
+        const ci = this.ci as unknown as {
+          simulateMouseButton?: (button: number, pressed: boolean) => void;
+          simulateMouse?: (...args: number[]) => void;
+        };
+        const button = event.control === "mouse-right" ? 2 : event.control === "mouse-middle" ? 1 : 0;
+        const pressed = event.type === "pointer-button-down";
+        if (typeof ci.simulateMouseButton === "function") {
+          ci.simulateMouseButton(button, pressed);
+        } else if (typeof ci.simulateMouse === "function") {
+          ci.simulateMouse(button, pressed ? 1 : 0);
+        }
+      } catch (e) {
+        console.warn("[dos-adapter] simulateMouseButton failed:", e);
+      }
+      return;
+    }
+
+    if (event.type === "pointer-wheel") {
+      try {
+        const ci = this.ci as unknown as {
+          simulateMouseWheel?: (deltaX: number, deltaY: number) => void;
+        };
+        if (typeof ci.simulateMouseWheel === "function") {
+          ci.simulateMouseWheel(event.x ?? 0, event.y ?? 0);
+        } else {
+          console.debug("[dos-adapter] js-dos mouse wheel API is not available in this core.");
+        }
+      } catch (e) {
+        console.warn("[dos-adapter] simulateMouseWheel failed:", e);
+      }
+      return;
+    }
   }
 
   /**
@@ -566,29 +600,14 @@ export class DosAdapter implements EmulatorAdapter {
     }
 
     const stateData = await this.ci.saveState();
-    const opfsPath = saveStatePath(this.currentGame.id, slot);
     const buffer = new ArrayBuffer(stateData.byteLength);
     new Uint8Array(buffer).set(stateData);
-    const blob = new Blob([buffer]);
-    const stream = blob.stream() as ReadableStream<Uint8Array>;
-    await writeStream(opfsPath, stream);
-
-    const hash = await sha256(stateData);
-    const now = Date.now();
-    const saveRecord = {
-      id: uuid(),
-      gameId: this.currentGame.id,
-      slot,
-      createdAt: now,
-      updatedAt: now,
-      fileSize: stateData.byteLength,
-      opfsPath,
-      isAutoSave: false,
+    const saveRecord = await saveStateAtomically(this.currentGame.id, slot, buffer, {
       emulatorCore: EMULATOR_CORE_VERSIONS.dos.core,
       emulatorVersion: EMULATOR_CORE_VERSIONS.dos.version,
-      gameFingerprint: this.currentGame.files[0]?.hash ?? hash,
-    };
-    await putSaveState(saveRecord);
+      gameFingerprint: this.currentGame.files[0]?.hash ?? this.currentGame.id,
+      isAutoSave: slot === SLOT_AUTO,
+    });
     const stored = saveStateRecordToStored(saveRecord);
 
     this.emit(makeEvent("state-saved", { slot }));
@@ -606,8 +625,7 @@ export class DosAdapter implements EmulatorAdapter {
       );
     }
 
-    const saves = await getSaveStates(this.currentGame.id);
-    const save = saves.find((s) => s.slot === slot);
+    const save = await getSaveState(this.currentGame.id, slot);
     if (!save) {
       throw new RetroCloudError(
         "SAVE_STATE_INCOMPATIBLE",
@@ -615,22 +633,29 @@ export class DosAdapter implements EmulatorAdapter {
       );
     }
 
-    const file = await readFile(save.opfsPath);
-    const data = new Uint8Array(await file.arrayBuffer());
-    await this.ci.loadState(data);
+    const fingerprint = this.currentGame.files[0]?.hash ?? this.currentGame.id;
+    const verified = await validateSaveStateRecord(save, {
+      gameId: this.currentGame.id,
+      emulatorCore: EMULATOR_CORE_VERSIONS.dos.core,
+      emulatorVersion: EMULATOR_CORE_VERSIONS.dos.version,
+      gameFingerprint: fingerprint,
+    });
+    if (!verified.ok) {
+      throw new RetroCloudError(
+        "SAVE_STATE_INCOMPATIBLE",
+        `Save state v slote ${slot} nie je kompatibilný alebo je poškodený (${verified.reason}).`
+      );
+    }
+
+    await this.ci.loadState(verified.data);
     this.emit(makeEvent("state-loaded", { slot }));
   }
 
   async deleteState(slot: number): Promise<void> {
     if (!this.currentGame) return;
-    const saves = await getSaveStates(this.currentGame.id);
-    const save = saves.find((s) => s.slot === slot);
+    const save = await getSaveState(this.currentGame.id, slot);
     if (!save) return;
-    await deleteSaveState(save.id);
-    // OPFS cleanup
-    await deleteRecursive(save.opfsPath).catch((e: unknown) => {
-      console.warn("[dos-adapter] deleteRecursive(save) zlyhal:", e);
-    });
+    await deleteSaveState(this.currentGame.id, slot);
   }
 
   setVolume(volume: number): void {
@@ -707,6 +732,14 @@ export class DosAdapter implements EmulatorAdapter {
           this.ci.simulateKeyEvent?.(code, false);
         } catch {
           // Key not currently pressed — ignore
+        }
+      }
+      const ci = this.ci as unknown as {
+        simulateMouseButton?: (button: number, pressed: boolean) => void;
+      };
+      if (typeof ci.simulateMouseButton === "function") {
+        for (const button of [0, 1, 2]) {
+          ci.simulateMouseButton(button, false);
         }
       }
     } catch (e) {

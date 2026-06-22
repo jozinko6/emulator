@@ -1,0 +1,154 @@
+{
+  "generatedAt": "2026-06-22T21:51:13.574Z",
+  "note": "No BIOS, ROM, ISO, or game content is downloaded by this script.",
+  "jsDos": [
+    {
+      "name": "js-dos.js",
+      "path": "public/emulator-assets/js-dos/js-dos.js",
+      "url": "https://registry.npmjs.org/js-dos/-/js-dos-8.4.0.tgz",
+      "source": "npm package js-dos@8.4.0",
+      "license": "GPL-2.0",
+      "size": 322695,
+      "sha256": "4d4a473323863dfeda8dece900d65a7bcf1296329dffd72b1987b134bde5cb8a"
+    },
+    {
+      "name": "js-dos.css",
+      "path": "public/emulator-assets/js-dos/js-dos.css",
+      "url": "https://registry.npmjs.org/js-dos/-/js-dos-8.4.0.tgz",
+      "source": "npm package js-dos@8.4.0",
+      "license": "GPL-2.0",
+      "size": 118628,
+      "sha256": "3c3e0512901781f3076deb31027e2f4528662617527ccb72da661a7cdda98fbf"
+    },
+    {
+      "name": "emulators.js",
+      "path": "public/emulator-assets/js-dos/emulators.js",
+      "url": "https://registry.npmjs.org/js-dos/-/js-dos-8.4.0.tgz",
+      "source": "npm package js-dos@8.4.0",
+      "license": "GPL-2.0",
+      "size": 67378,
+      "sha256": "b01b60cddb81504ea399a90e324552b5f44fa865f875a0a0afcd24eab5ef69a3"
+    },
+    {
+      "name": "wdosbox.js",
+      "path": "public/emulator-assets/js-dos/wdosbox.js",
+      "url": "https://registry.npmjs.org/js-dos/-/js-dos-8.4.0.tgz",
+      "source": "npm package js-dos@8.4.0",
+      "license": "GPL-2.0",
+      "size": 111939,
+      "sha256": "71397a28a933269e9e3f2e91fd917c0ec05958adf3b2052574fc57eb6b1ee5e1"
+    },
+    {
+      "name": "wdosbox.wasm",
+      "path": "public/emulator-assets/js-dos/wdosbox.wasm",
+      "url": "https://registry.npmjs.org/js-dos/-/js-dos-8.4.0.tgz",
+      "source": "npm package js-dos@8.4.0",
+      "license": "GPL-2.0",
+      "size": 1459705,
+      "sha256": "aea62e7ea836424ce912728692d3168df63828b5fabfebc2b18cd1d2b19beda2"
+    },
+    {
+      "name": "wdosbox-x.js",
+      "path": "public/emulator-assets/js-dos/wdosbox-x.js",
+      "url": "https://registry.npmjs.org/js-dos/-/js-dos-8.4.0.tgz",
+      "source": "npm package js-dos@8.4.0",
+      "license": "GPL-2.0",
+      "size": 265923,
+      "sha256": "ae65371e2bfc8fe3be52e45f6e45f13a4e9c5e3446f2c59c7d04d3e72a3ae653"
+    },
+    {
+      "name": "wdosbox-x.wasm",
+      "path": "public/emulator-assets/js-dos/wdosbox-x.wasm",
+      "url": "https://registry.npmjs.org/js-dos/-/js-dos-8.4.0.tgz",
+      "source": "npm package js-dos@8.4.0",
+      "license": "GPL-2.0",
+      "size": 7857437,
+      "sha256": "9aa26d8b2cf115bda9e2da6d34cb73f396538b44473888f1ea508ed9e35bbd1a"
+    },
+    {
+      "name": "wlibzip.js",
+      "path": "public/emulator-assets/js-dos/wlibzip.js",
+      "url": "https://registry.npmjs.org/js-dos/-/js-dos-8.4.0.tgz",
+      "source": "npm package js-dos@8.4.0",
+      "license": "GPL-2.0",
+      "size": 72957,
+      "sha256": "b8e55c2aa4c96e961c9965f289c0f40b5d44f02a557dcf980ddc29787b493842"
+    },
+    {
+      "name": "wlibzip.wasm",
+      "path": "public/emulator-assets/js-dos/wlibzip.wasm",
+      "url": "https://registry.npmjs.org/js-dos/-/js-dos-8.4.0.tgz",
+      "source": "npm package js-dos@8.4.0",
+      "license": "GPL-2.0",
+      "size": 112483,
+      "sha256": "25064d970c42ca7ea0fdb8b058204d6e41cc8826a676219677772f5591e8337b"
+    }
+  ],
+  "emulatorJs": [
+    {
+      "name": "loader.js",
+      "path": "public/emulator-assets/emulatorjs/loader.js",
+      "url": "https://cdn.emulatorjs.org/stable/data/loader.js",
+      "source": "EmulatorJS official stable CDN",
+      "license": "GPL-3.0",
+      "size": 7594,
+      "sha256": "69e0903bf1e2f62ced78895e7e511fa26e11316f7eb734925c35e919ba1287b2"
+    },
+    {
+      "name": "emulator.min.js",
+      "path": "public/emulator-assets/emulatorjs/data/emulator.min.js",
+      "url": "https://cdn.emulatorjs.org/stable/data/emulator.min.js",
+      "source": "EmulatorJS official stable CDN",
+      "license": "GPL-3.0",
+      "size": 426343,
+      "sha256": "6aec3fd7bb2721255801b0a6af02e47e78b05e28a1822b1f213aacbd348abaee"
+    },
+    {
+      "name": "emulator.min.css",
+      "path": "public/emulator-assets/emulatorjs/data/emulator.min.css",
+      "url": "https://cdn.emulatorjs.org/stable/data/emulator.min.css",
+      "source": "EmulatorJS official stable CDN",
+      "license": "GPL-3.0",
+      "size": 25630,
+      "sha256": "16406c60b2dc3b04ae9b115e308613e6f567a0cc7068e21d9d0c1e5030fb395e"
+    },
+    {
+      "name": "pcsx_rearmed-wasm.data",
+      "path": "public/emulator-assets/emulatorjs/data/cores/pcsx_rearmed-wasm.data",
+      "url": "https://cdn.emulatorjs.org/stable/data/cores/pcsx_rearmed-wasm.data",
+      "source": "EmulatorJS official stable CDN",
+      "license": "GPL-3.0 / core license in upstream package",
+      "size": 1039627,
+      "sha256": "fe5515f6c29f093f0e8c01824b213804f1f76eb9cb4c97c72fe2cc17606bfbc2"
+    },
+    {
+      "name": "version.json",
+      "path": "public/emulator-assets/emulatorjs/data/version.json",
+      "url": "https://cdn.emulatorjs.org/stable/data/version.json",
+      "source": "EmulatorJS official stable CDN",
+      "license": "GPL-3.0",
+      "size": 126,
+      "sha256": "d8991427000a96fb97daefdb62178071e9bbff911760706148e584ae8d69f9e7"
+    }
+  ],
+  "libarchive": [
+    {
+      "name": "worker-bundle.js",
+      "path": "public/emulator-assets/libarchive/worker-bundle.js",
+      "url": "https://registry.npmjs.org/libarchive.js/-/libarchive.js-2.0.2.tgz",
+      "source": "npm package libarchive.js@2.0.2 installed by npm ci",
+      "license": "MIT",
+      "size": 61634,
+      "sha256": "552fd4c4e96e677b8d1ee28b96eec3f7761f19ae9069b6df40c1848b3b632493"
+    },
+    {
+      "name": "libarchive.wasm",
+      "path": "public/emulator-assets/libarchive/libarchive.wasm",
+      "url": "https://registry.npmjs.org/libarchive.js/-/libarchive.js-2.0.2.tgz",
+      "source": "npm package libarchive.js@2.0.2 installed by npm ci",
+      "license": "MIT",
+      "size": 1002547,
+      "sha256": "8a66066ed3ea1e6db0469ec752d8fca888a6bf737c6cff21fdbcb62241a72424"
+    }
+  ]
+}

@@ -31,7 +31,7 @@ export function ServiceWorkerRegistrar() {
         });
       })
       .catch(() => {
-        // SW registration failed — not fatal in sandbox/preview
+        // SW registration failed â€” not fatal in sandbox/preview
       });
 
     return () => {
@@ -43,9 +43,9 @@ export function ServiceWorkerRegistrar() {
 
   return (
     <div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-lg border border-border bg-card p-4 shadow-xl">
-      <p className="text-sm font-medium">Dostupná aktualizácia</p>
+      <p className="text-sm font-medium">DostupnĂˇ aktualizĂˇcia</p>
       <p className="mt-1 text-xs text-muted-foreground">
-        Nová verzia RETROCLOUD je pripravená. Aktualizovať po ukončení hry.
+        NovĂˇ verzia Jaňo še chce bavkac je pripravenĂˇ. AktualizovaĹĄ po ukonÄŤenĂ­ hry.
       </p>
       <button
         className="mt-3 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
@@ -57,7 +57,7 @@ export function ServiceWorkerRegistrar() {
           });
         }}
       >
-        Aktualizovať teraz
+        AktualizovaĹĄ teraz
       </button>
     </div>
   );

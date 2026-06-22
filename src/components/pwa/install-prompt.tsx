@@ -28,9 +28,9 @@ export function InstallPrompt() {
       <div className="flex items-start gap-3">
         <Download className="h-5 w-5 text-primary shrink-0 mt-0.5" />
         <div className="flex-1">
-          <p className="text-sm font-medium">Nainštalovať RETROCLOUD</p>
+          <p className="text-sm font-medium">NainĹˇtalovaĹĄ Jaňo še chce bavkac</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Nainštalujte aplikáciu do zariadenia pre rýchly prístup a offline režim.
+            NainĹˇtalujte aplikĂˇciu do zariadenia pre rĂ˝chly prĂ­stup a offline reĹľim.
           </p>
           <div className="mt-3 flex gap-2">
             <button
@@ -41,7 +41,7 @@ export function InstallPrompt() {
                 setDeferred(null);
               }}
             >
-              Inštalovať
+              InĹˇtalovaĹĄ
             </button>
             <button
               className="rounded-md border border-border px-3 py-1.5 text-xs"

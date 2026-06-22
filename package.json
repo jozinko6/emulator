@@ -2,7 +2,7 @@
   "name": "jano-se-chce-bavkac",
   "version": "0.3.0",
   "private": true,
-  "description": "Jaňo še chce bavkac — lokálny emulátor DOS a PlayStation hier pre PC, Android a Android TV.",
+  "description": "Ja?o ?e chce bavkac - lok?lny emul?tor DOS a PlayStation hier pre PC, Android a Android TV.",
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "node scripts/build.mjs",
@@ -15,9 +15,11 @@
     "android:web": "npm run build:android-shell",
     "build:android-shell": "node scripts/build-android-shell.mjs",
     "android:sync": "npm run android:web && cap sync android",
-    "android:debug": "npm run android:sync && cd android && ./gradlew assembleDebug",
-    "android:release": "npm run android:sync && cd android && ./gradlew assembleRelease",
-    "setup:cores": "node scripts/setup-emulator-assets.mjs"
+    "android:debug": "npm run android:sync && node scripts/run-gradle.mjs assembleDebug",
+    "android:release": "npm run android:sync && node scripts/run-gradle.mjs assembleRelease",
+    "setup:cores": "node scripts/setup-emulator-assets.mjs",
+    "check:encoding": "node scripts/check-encoding.mjs",
+    "verify:cores": "node scripts/verify-emulator-assets.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.1",

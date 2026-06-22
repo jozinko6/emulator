@@ -5,10 +5,9 @@ import "@testing-library/jest-dom/vitest";
 if (typeof Blob !== "undefined" && !Blob.prototype.stream) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (Blob.prototype as any).stream = function (this: Blob): ReadableStream<Uint8Array> {
-    const blob = this;
     return new ReadableStream<Uint8Array>({
-      async start(controller) {
-        const ab = await blob.arrayBuffer();
+      start: async (controller) => {
+        const ab = await this.arrayBuffer();
         const safeBuf = new ArrayBuffer(ab.byteLength);
         new Uint8Array(safeBuf).set(new Uint8Array(ab));
         controller.enqueue(new Uint8Array(safeBuf));

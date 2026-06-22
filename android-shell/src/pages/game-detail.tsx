@@ -234,7 +234,7 @@ export function GameDetailPage() {
                     {new Date(s.updatedAt).toLocaleString("sk")} · {formatBytes(s.fileSize)}
                   </p>
                 </div>
-                <Link to={`/play/${game.id}`}>
+                <Link to={`/play/${game.id}?slot=${s.slot}`}>
                   <Button size="sm" variant="outline">
                     <Download className="h-3 w-3 mr-1" />
                     Načítať

@@ -39,7 +39,11 @@ export interface EmulatorInputEvent {
     | "axis"
     | "key-down"
     | "key-up"
-    | "pointer";
+    | "pointer"
+    | "pointer-move"
+    | "pointer-button-down"
+    | "pointer-button-up"
+    | "pointer-wheel";
   control: string;
   value?: number;
   x?: number;

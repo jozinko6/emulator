@@ -1,17 +1,17 @@
 "use client";
 
 /**
- * BiosManager — UI pre upload a správu BIOS súborov.
+ * BiosManager â€” UI pre upload a sprĂˇvu BIOS sĂşborov.
  *
  * Per prompt ETAPA 6. Podporuje:
- *  - drag&drop alebo file picker pre upload BIOS súboru
- *  - validácia cez `validatePs1Bios`
- *  - zoznam nahraných BIOS s regiónom, veľkosťou, hashom
- *  - tlačidlo odstrániť
+ *  - drag&drop alebo file picker pre upload BIOS sĂşboru
+ *  - validĂˇcia cez `validatePs1Bios`
+ *  - zoznam nahranĂ˝ch BIOS s regiĂłnom, veÄľkosĹĄou, hashom
+ *  - tlaÄŤidlo odstrĂˇniĹĄ
  *
- * Ukladá do OPFS cez `biosPath()`, metadata do IndexedDB.
+ * UkladĂˇ do OPFS cez `biosPath()`, metadata do IndexedDB.
  *
- * Komentáre v slovenčine.
+ * KomentĂˇre v slovenÄŤine.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuid } from "uuid";
@@ -40,7 +40,7 @@ import type { BiosRecord } from "@/types/game";
 import type { EmulatorPlatform } from "@/types/emulator";
 
 interface BiosManagerProps {
-  /** Obmedzí zoznam na jednu platformu (ak nie je zadané, zobrazí všetky). */
+  /** ObmedzĂ­ zoznam na jednu platformu (ak nie je zadanĂ©, zobrazĂ­ vĹˇetky). */
   platformFilter?: EmulatorPlatform;
 }
 
@@ -69,17 +69,17 @@ export function BiosManager({ platformFilter }: BiosManagerProps) {
   }, [loadBios]);
 
   /**
-   * Spracuje nahraný súbor — validuje ho a uloží do OPFS + IndexedDB.
+   * Spracuje nahranĂ˝ sĂşbor â€” validuje ho a uloĹľĂ­ do OPFS + IndexedDB.
    */
   const handleFile = useCallback(
     async (file: File, platform: EmulatorPlatform = "ps1") => {
       setUploading(true);
       try {
-        // Pre PS1 použijeme validatePs1Bios
+        // Pre PS1 pouĹľijeme validatePs1Bios
         if (platform !== "ps1") {
           toast({
-            title: "Nepodporovaná platforma",
-            description: `BIOS upload pre ${platform} nie je zatiaľ podporovaný.`,
+            title: "NepodporovanĂˇ platforma",
+            description: `BIOS upload pre ${platform} nie je zatiaÄľ podporovanĂ˝.`,
             variant: "destructive",
           });
           return;
@@ -89,20 +89,20 @@ export function BiosManager({ platformFilter }: BiosManagerProps) {
         const result = await validatePs1Bios(buffer);
         if (!result.ok) {
           toast({
-            title: "Neplatný BIOS",
+            title: "NeplatnĂ˝ BIOS",
             description: result.reasons.join(" "),
             variant: "destructive",
           });
           return;
         }
 
-        // Ulož do OPFS
+        // UloĹľ do OPFS
         const opfsPath = biosPath(platform, file.name);
         const blob = new Blob([buffer]);
         const stream = blob.stream() as ReadableStream<Uint8Array>;
         await writeStream(opfsPath, stream);
 
-        // Ulož metadata do IndexedDB
+        // UloĹľ metadata do IndexedDB
         const record: BiosRecord = {
           id: uuid(),
           platform,
@@ -117,8 +117,8 @@ export function BiosManager({ platformFilter }: BiosManagerProps) {
         await loadBios();
 
         toast({
-          title: "BIOS nahraný",
-          description: `${file.name} — región: ${result.region ?? "unknown"}`,
+          title: "BIOS nahranĂ˝",
+          description: `${file.name} â€” regiĂłn: ${result.region ?? "unknown"}`,
         });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -143,13 +143,13 @@ export function BiosManager({ platformFilter }: BiosManagerProps) {
         });
         await loadBios();
         toast({
-          title: "BIOS odstránený",
+          title: "BIOS odstrĂˇnenĂ˝",
           description: bios.fileName,
         });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         toast({
-          title: "Odstránenie zlyhalo",
+          title: "OdstrĂˇnenie zlyhalo",
           description: msg,
           variant: "destructive",
         });
@@ -200,11 +200,11 @@ export function BiosManager({ platformFilter }: BiosManagerProps) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Cpu className="size-5 text-primary" aria-hidden="true" />
-          BIOS súbory
+          BIOS sĂşbory
         </CardTitle>
         <CardDescription>
-          Pre PS1 emuláciu je potrebný vlastný BIOS súbor (napr. SCPH-1001, SCPH-5501).
-          Súbory sa ukladajú len lokálne do vášho zariadenia.
+          Pre PS1 emulĂˇciu je potrebnĂ˝ vlastnĂ˝ BIOS sĂşbor (napr. SCPH-1001, SCPH-5501).
+          SĂşbory sa ukladajĂş len lokĂˇlne do vĂˇĹˇho zariadenia.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -215,7 +215,7 @@ export function BiosManager({ platformFilter }: BiosManagerProps) {
           onDragLeave={onDragLeave}
           className={cnDrop(dragOver)}
           role="region"
-          aria-label="Zóna pre nahranie BIOS súboru"
+          aria-label="ZĂłna pre nahranie BIOS sĂşboru"
         >
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
             {uploading ? (
@@ -225,9 +225,9 @@ export function BiosManager({ platformFilter }: BiosManagerProps) {
             )}
           </div>
           <div className="space-y-1 text-center">
-            <p className="font-medium text-foreground">Pretiahnite sem BIOS súbor</p>
+            <p className="font-medium text-foreground">Pretiahnite sem BIOS sĂşbor</p>
             <p className="text-xs text-muted-foreground">
-              Podporované: PS1 BIOS (SCPH-1000..SCPH-9000), 512 KB / 2 MB / 4 MB
+              PodporovanĂ©: PS1 BIOS (SCPH-1000..SCPH-9000), 512 KB / 2 MB / 4 MB
             </p>
           </div>
           <Button
@@ -237,7 +237,7 @@ export function BiosManager({ platformFilter }: BiosManagerProps) {
             className="min-h-11"
           >
             <FileUp className="size-4" />
-            Vybrať súbor
+            VybraĹĄ sĂşbor
           </Button>
           <input
             ref={fileInputRef}
@@ -245,17 +245,17 @@ export function BiosManager({ platformFilter }: BiosManagerProps) {
             onChange={onInputChange}
             accept=".bin,.rom,.bios"
             className="sr-only"
-            aria-label="Vyber BIOS súbor"
+            aria-label="Vyber BIOS sĂşbor"
           />
         </div>
 
         {/* List */}
         {biosList.length === 0 ? (
           <div className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            Žiadne BIOS súbory. Nahrajte súbor vyššie.
+            Ĺ˝iadne BIOS sĂşbory. Nahrajte sĂşbor vyĹˇĹˇie.
           </div>
         ) : (
-          <ul className="space-y-2" aria-label="Zoznam nahraných BIOS súborov">
+          <ul className="space-y-2" aria-label="Zoznam nahranĂ˝ch BIOS sĂşborov">
             {biosList.map((bios) => (
               <li
                 key={bios.id}
@@ -283,7 +283,7 @@ export function BiosManager({ platformFilter }: BiosManagerProps) {
                     </div>
                     <p className="flex items-center gap-1 text-[10px] text-muted-foreground">
                       <Hash className="size-3" aria-hidden="true" />
-                      <code className="font-mono">{bios.hash.slice(0, 16)}…</code>
+                      <code className="font-mono">{bios.hash.slice(0, 16)}â€¦</code>
                     </p>
                   </div>
                   <Button
@@ -291,7 +291,7 @@ export function BiosManager({ platformFilter }: BiosManagerProps) {
                     variant="ghost"
                     size="icon"
                     onClick={() => void handleDelete(bios)}
-                    aria-label={`Odstrániť ${bios.fileName}`}
+                    aria-label={`OdstrĂˇniĹĄ ${bios.fileName}`}
                     className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                   >
                     <Trash2 className="size-4" />
@@ -306,9 +306,9 @@ export function BiosManager({ platformFilter }: BiosManagerProps) {
         <div className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
           <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
           <p>
-            BIOS súbory sa ukladajú výhradne do vášho zariadenia (OPFS) a nikdy
-            nie sú odosielané na server. RETROCLOUD nedistribuuje BIOS súbory —
-            používateľ je zodpovedný za ich legálne vlastníctvo.
+            BIOS sĂşbory sa ukladajĂş vĂ˝hradne do vĂˇĹˇho zariadenia (OPFS) a nikdy
+            nie sĂş odosielanĂ© na server. Jaňo še chce bavkac nedistribuuje BIOS sĂşbory â€”
+            pouĹľĂ­vateÄľ je zodpovednĂ˝ za ich legĂˇlne vlastnĂ­ctvo.
           </p>
         </div>
       </CardContent>
@@ -317,7 +317,7 @@ export function BiosManager({ platformFilter }: BiosManagerProps) {
 }
 
 /**
- * Skladá Tailwind class-y pre drop zónu.
+ * SkladĂˇ Tailwind class-y pre drop zĂłnu.
  */
 function cnDrop(dragOver: boolean): string {
   const base =

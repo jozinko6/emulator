@@ -130,7 +130,7 @@ class NativeStoragePlugin : Plugin() {
     }
 
     @PluginMethod
-    fun openAsBlob(call: PluginCall) {
+    fun openFile(call: PluginCall) {
         // Capacitor bridge handles File → Blob conversion automatically
         // when returning a file:// URL. We just return the URL.
         val path = call.getString("path") ?: run {
@@ -144,6 +144,7 @@ class NativeStoragePlugin : Plugin() {
             return
         }
         val result = JSObject()
+        result.put("path", path)
         result.put("url", "file://${file.absolutePath}")
         result.put("size", file.length())
         call.resolve(result)

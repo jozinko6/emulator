@@ -30,7 +30,7 @@ function adapterToMouseInputAdapter(adapter: EmulatorAdapter): EmulatorInputAdap
     keyUp() {},
     pointerMove(deltaX, deltaY) {
       adapter.sendInput({
-        type: "pointer",
+        type: "pointer-move",
         control: "mouse-move",
         x: deltaX,
         y: deltaY,
@@ -40,7 +40,7 @@ function adapterToMouseInputAdapter(adapter: EmulatorAdapter): EmulatorInputAdap
     pointerButtonDown(button) {
       const control = button === 0 ? "mouse-left" : button === 2 ? "mouse-right" : "mouse-middle";
       adapter.sendInput({
-        type: "button-down",
+        type: "pointer-button-down",
         control,
         value: 1,
         timestamp: Date.now(),
@@ -49,7 +49,7 @@ function adapterToMouseInputAdapter(adapter: EmulatorAdapter): EmulatorInputAdap
     pointerButtonUp(button) {
       const control = button === 0 ? "mouse-left" : button === 2 ? "mouse-right" : "mouse-middle";
       adapter.sendInput({
-        type: "button-up",
+        type: "pointer-button-up",
         control,
         value: 0,
         timestamp: Date.now(),
@@ -57,7 +57,7 @@ function adapterToMouseInputAdapter(adapter: EmulatorAdapter): EmulatorInputAdap
     },
     pointerWheel(deltaX, deltaY) {
       adapter.sendInput({
-        type: "pointer",
+        type: "pointer-wheel",
         control: deltaY > 0 ? "wheel-down" : "wheel-up",
         x: deltaX,
         y: deltaY,

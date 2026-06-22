@@ -25,11 +25,11 @@ abstract class BaseGameActivity : BridgeActivity() {
     private var gamepadPlugin: NativeGamepadPlugin? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
         registerPlugin(NativeFullscreenPlugin::class.java)
         registerPlugin(NativeGamepadPlugin::class.java)
         registerPlugin(NativeStoragePlugin::class.java)
         registerPlugin(NativeFilePickerPlugin::class.java)
+        super.onCreate(savedInstanceState)
     }
 
     override fun onStart() {
@@ -78,7 +78,7 @@ abstract class BaseGameActivity : BridgeActivity() {
         val plugin = gamepadPlugin ?: return super.onGenericMotionEvent(event)
         if (!plugin.isActive()) return super.onGenericMotionEvent(event)
 
-        val sources = event.sources
+        val sources = event.source
         val isGamepad = (sources and InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD
         val isJoystick = (sources and InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK
         if (!isGamepad && !isJoystick) {

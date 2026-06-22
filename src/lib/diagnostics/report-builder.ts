@@ -52,6 +52,8 @@ export async function buildDiagnosticsReport(): Promise<DiagnosticsReport> {
       vibration: caps.vibration,
     },
     storage,
+    emulatorAssets: await probeEmulatorAssets(),
+    nativePlugins: probeNativePlugins(),
     connectedGamepads: connected.map((g) => ({
       index: g!.index,
       id: g!.id,
@@ -60,6 +62,39 @@ export async function buildDiagnosticsReport(): Promise<DiagnosticsReport> {
       axes: g!.axes.length,
     })),
     recentErrors: readRecentErrors(),
+  };
+}
+
+async function probeUrl(path: string): Promise<boolean> {
+  if (typeof fetch === "undefined") return false;
+  try {
+    const response = await fetch(path, { method: "HEAD", cache: "no-store" });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function probeEmulatorAssets(): Promise<DiagnosticsReport["emulatorAssets"]> {
+  const [manifest, jsDos, emulatorJs, libarchive] = await Promise.all([
+    probeUrl("/emulator-assets/emulator-assets.manifest.json"),
+    probeUrl("/emulator-assets/js-dos/js-dos.js"),
+    probeUrl("/emulator-assets/emulatorjs/loader.js"),
+    probeUrl("/emulator-assets/libarchive/worker-bundle.js"),
+  ]);
+  return { manifest, jsDos, emulatorJs, libarchive };
+}
+
+function probeNativePlugins(): DiagnosticsReport["nativePlugins"] {
+  const capacitor = typeof window !== "undefined"
+    ? (window.Capacitor as { isPluginAvailable?: (name: string) => boolean } | undefined)
+    : undefined;
+  const isAvailable = (name: string) => capacitor?.isPluginAvailable?.(name) === true;
+  return {
+    NativeGamepad: isAvailable("NativeGamepad"),
+    NativeStorage: isAvailable("NativeStorage"),
+    NativeFilePicker: isAvailable("NativeFilePicker"),
+    NativeFullscreen: isAvailable("NativeFullscreen"),
   };
 }
 

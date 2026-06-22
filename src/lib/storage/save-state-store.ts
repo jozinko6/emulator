@@ -78,30 +78,54 @@ export async function getSaveStatesForGame(
 export async function getLatestSaveForGame(
   gameId: string,
   emulatorCore?: string,
-  emulatorVersion?: string
+  emulatorVersion?: string,
+  gameFingerprint?: string
 ): Promise<SaveStateRecord | null> {
   const saves = await getSaveStatesForGame(gameId);
   if (saves.length === 0) return null;
 
-  // Filter by emulator compatibility if specified
-  const compatible = emulatorCore
-    ? saves.filter(
-        (s) =>
-          s.emulatorCore === emulatorCore &&
-          (!emulatorVersion || s.emulatorVersion === emulatorVersion)
+  const requiresCompatibility = !!emulatorCore || !!emulatorVersion || !!gameFingerprint;
+  const compatible = requiresCompatibility
+    ? saves.filter((s) =>
+        (!emulatorCore || s.emulatorCore === emulatorCore) &&
+        (!emulatorVersion || s.emulatorVersion === emulatorVersion) &&
+        (!gameFingerprint || s.gameFingerprint === gameFingerprint) &&
+        s.fileSize > 0 &&
+        !!s.stateHash
       )
     : saves;
 
-  const pool = compatible.length > 0 ? compatible : saves;
+  if (requiresCompatibility && compatible.length === 0) return null;
+  const pool = compatible;
 
-  // Prefer manual, then auto, then backup
-  return (
-    pool.find((s) => s.slot === SLOT_MANUAL) ??
-    pool.find((s) => s.slot === SLOT_AUTO) ??
-    pool.find((s) => s.slot === SLOT_BACKUP) ??
-    pool[0] ??
-    null
-  );
+  const primary = pool
+    .filter((s) => s.slot === SLOT_MANUAL || s.slot === SLOT_AUTO)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  if (primary[0]) return primary[0];
+  return pool.find((s) => s.slot === SLOT_BACKUP) ?? pool[0] ?? null;
+}
+
+export async function validateSaveStateRecord(
+  save: SaveStateRecord,
+  opts: {
+    gameId: string;
+    emulatorCore: string;
+    emulatorVersion: string;
+    gameFingerprint: string;
+  }
+): Promise<{ ok: true; data: Uint8Array } | { ok: false; reason: string; corrupted: boolean }> {
+  if (save.gameId !== opts.gameId) return { ok: false, reason: "wrong-game", corrupted: false };
+  if (save.emulatorCore !== opts.emulatorCore) return { ok: false, reason: "wrong-core", corrupted: false };
+  if (save.emulatorVersion !== opts.emulatorVersion) return { ok: false, reason: "wrong-core-version", corrupted: false };
+  if (save.gameFingerprint !== opts.gameFingerprint) return { ok: false, reason: "wrong-game-fingerprint", corrupted: false };
+
+  const { readFile } = await import("@/lib/storage/opfs");
+  const file = await readFile(save.opfsPath);
+  if (file.size !== save.fileSize) return { ok: false, reason: "file-size-mismatch", corrupted: true };
+  const data = new Uint8Array(await file.arrayBuffer());
+  const hash = await sha256(data);
+  if (hash !== save.stateHash) return { ok: false, reason: "state-hash-mismatch", corrupted: true };
+  return { ok: true, data };
 }
 
 /**
@@ -133,106 +157,100 @@ export async function saveStateAtomically(
   }
 ): Promise<SaveStateRecord> {
   const id = makeSaveStateId(gameId, slot);
-  const targetPath = saveStatePath(gameId, slot);
-  const tempPath = `${targetPath}.tmp`;
+  const size = data.byteLength;
+  if (size === 0) {
+    throw new Error("Save state is empty");
+  }
 
-  // 1. Zapíš do temp
+  const hash = await sha256(data);
+  const now = Date.now();
+  const finalPath = `saves/${gameId}/slot-${slot}-${now}-${hash.slice(0, 16)}.state`;
+  const tempPath = `${finalPath}.tmp`;
+  const previous = await getSaveState(gameId, slot);
+
   try {
-    // Wrap into fresh ArrayBuffer to satisfy BlobPart typing (avoid SharedArrayBuffer issues)
-    const buf = new ArrayBuffer(data.byteLength);
-    new Uint8Array(buf).set(new Uint8Array(data));
-    const tempStream = new Blob([buf]).stream();
-    await writeStream(tempPath, tempStream);
+    const tempBuffer = new ArrayBuffer(data.byteLength);
+    new Uint8Array(tempBuffer).set(new Uint8Array(data));
+    await writeStream(tempPath, new Blob([tempBuffer]).stream());
+
+    const { readFile } = await import("@/lib/storage/opfs");
+    const tempFile = await readFile(tempPath);
+    if (tempFile.size !== size) {
+      throw new Error(`Temp save size mismatch: expected ${size}, got ${tempFile.size}`);
+    }
   } catch (e) {
-    // Cleanup temp on failure
     await deleteRecursive(tempPath).catch(() => undefined);
     throw new Error(`Failed to write temp save: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  // 2. Over veľkosť a hash
-  const size = data.byteLength;
-  if (size === 0) {
-    await deleteRecursive(tempPath).catch(() => undefined);
-    throw new Error("Save state is empty");
-  }
-  const hash = await sha256(data);
-
-  // 3. Ak existuje predchádzajúci save v tomto slote, presuň ho do backup (slot 2)
-  // Len ak ukladáme do manual alebo auto (nie backup)
-  if (slot === SLOT_MANUAL || slot === SLOT_AUTO) {
-    const previous = await getSaveState(gameId, slot);
-    if (previous) {
-      try {
-        await promoteToBackup(gameId, previous);
-      } catch (e) {
-        console.warn("Failed to promote previous save to backup:", e);
-        // Non-fatal — continue
-      }
+  if ((slot === SLOT_MANUAL || slot === SLOT_AUTO) && previous && previous.fileSize > 0) {
+    try {
+      await promoteToBackup(gameId, previous);
+    } catch (e) {
+      console.warn("Failed to promote previous save to backup:", e);
     }
   }
 
-  // 4. Aktivuj nový save: premenuj temp → cieľ (v OPFS to znamená ďalší write + delete)
-  // Kvôli jednoduchosti prepíšeme cieľ priamo — atomickosť zabezpečuje, že temp je už úspešne zapísaný.
   try {
-    // Pre-menuj temp na cieľ (delete target, write target z temp, delete temp)
-    await deleteRecursive(targetPath).catch(() => undefined);
-    const targetBuf = new ArrayBuffer(data.byteLength);
-    new Uint8Array(targetBuf).set(new Uint8Array(data));
-    const targetStream = new Blob([targetBuf]).stream();
-    await writeStream(targetPath, targetStream);
+    const finalBuffer = new ArrayBuffer(data.byteLength);
+    new Uint8Array(finalBuffer).set(new Uint8Array(data));
+    const written = await writeStream(finalPath, new Blob([finalBuffer]).stream());
+    if (written.size !== size) {
+      throw new Error(`Final save size mismatch: expected ${size}, got ${written.size}`);
+    }
     await deleteRecursive(tempPath).catch(() => undefined);
   } catch (e) {
-    // Temp zostáva, target je možno poškodený — restore zo starého backupu ak existuje
-    await deleteRecursive(targetPath).catch(() => undefined);
+    await deleteRecursive(tempPath).catch(() => undefined);
+    await deleteRecursive(finalPath).catch(() => undefined);
     throw new Error(`Failed to activate save: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  // Screenshot (voliteľný)
   let screenshotPathValue: string | undefined;
   if (opts.screenshotBytes && opts.screenshotBytes.length > 0) {
     try {
       const shotPath = screenshotPath(gameId, slot);
-      const shotBuf = new ArrayBuffer(opts.screenshotBytes.byteLength);
-      new Uint8Array(shotBuf).set(opts.screenshotBytes);
-      const shotStream = new Blob([shotBuf]).stream();
-      await writeStream(shotPath, shotStream);
+      const shotBuffer = new ArrayBuffer(opts.screenshotBytes.byteLength);
+      new Uint8Array(shotBuffer).set(opts.screenshotBytes);
+      await writeStream(shotPath, new Blob([shotBuffer]).stream());
       screenshotPathValue = shotPath;
     } catch (e) {
       console.warn("Failed to save screenshot:", e);
     }
   }
 
-  // 5. IndexedDB záznam — upsert s deterministickým ID
-  const now = Date.now();
-  const existing = await getSaveState(gameId, slot);
   const record: SaveStateRecord = {
     id,
     gameId,
     slot,
-    createdAt: existing?.createdAt ?? now,
+    createdAt: previous?.createdAt ?? now,
     updatedAt: now,
     fileSize: size,
+    stateHash: hash,
     screenshotPath: screenshotPathValue,
     note: opts.note,
     isAutoSave: opts.isAutoSave,
     emulatorCore: opts.emulatorCore,
     emulatorVersion: opts.emulatorVersion,
     gameFingerprint: opts.gameFingerprint,
-    opfsPath: targetPath,
+    opfsPath: finalPath,
   };
 
   try {
     const db = await getDB();
     await db.put("saves", record);
   } catch (e) {
-    // Rollback: odstráň OPFS súbor, aby sme nemali súbor bez metadat
-    await deleteRecursive(targetPath).catch(() => undefined);
+    await deleteRecursive(finalPath).catch(() => undefined);
     throw new Error(`Failed to persist save metadata: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  if (previous?.opfsPath && previous.opfsPath !== finalPath) {
+    await deleteRecursive(previous.opfsPath).catch((e) => {
+      console.warn("Failed to remove superseded save file:", e);
+    });
   }
 
   return record;
 }
-
 /**
  * Presuň save state do backup slotu (slot 2).
  * Používa sa pred prepísaním manual/auto save.
@@ -263,6 +281,7 @@ async function promoteToBackup(
     createdAt: source.createdAt,
     updatedAt: now,
     fileSize: source.fileSize,
+    stateHash: source.stateHash,
     screenshotPath: source.screenshotPath,
     note: `Backup of slot ${source.slot}`,
     isAutoSave: false,
