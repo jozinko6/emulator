@@ -296,3 +296,242 @@ Stav projektu: **Dokončené v maximálnom možnom rozsahu pre tento sandbox env
 - ✅ Implementované: architektúra, storage, import, detekcia, DOS/PS1 adaptéry, ovládanie, UI, PWA, Supabase migrácia, CI, testy, dokumentácia
 - ⛔ Vypnuté: PS2 (feature flag off, žiadny placeholder)
 - 📦 Treba pridať pred produkčným nasadením: WASM jadrá (js-dos, EmulatorJS) a libarchive.js worker bundle do `public/emulator-assets/` z licenčných dôvodov
+
+---
+
+# Rozšírenie — JAŇO ŠE CHCE BAVKAC
+
+Tento dodatok popisuje rozšírenia implementované podľa doplňujúceho promptu.
+
+## Desktop keyboard support
+
+Implementované v `src/lib/input/keyboard-handler.ts`:
+
+- Používa `KeyboardEvent.code` (fyzická pozícia klávesy) ako primárny identifikátor — nie `key` (logická hodnota)
+- Plná podpora: písmená, čísla, medzerník, Enter, Escape, Backspace, Tab, Ctrl, Alt, Shift, F1-F12, šípky, Insert, Delete, Home, End, Page Up/Down, numerická klávesnica
+- Ochrana proti opakovanému odosielaniu (`e.repeat` sa ignoruje)
+- Release všetkých stlačených kláves pri:
+  - Strate focusu (`window.blur`)
+  - `visibilitychange` (prepnutie na inú záložku)
+  - `focusout` s `relatedTarget === null`
+  - Pauze (explicitné volanie `releaseAll()`)
+  - Ukončení hry (cez `stop()`)
+- Blokuje systémové skratky (F5, F11, F12, ...) počas hrania
+- Nastaviteľné `allowedCodes`, `ignoredCodes`, `customMap` per hra
+- `codeToControl(code)` pomocník mapuje `KeyboardEvent.code` na zdieľaný názov (`key-a`, `key-f5`, `key-numpad-0`, ...)
+
+Testy: `tests/unit/keyboard-handler.test.ts` (11 testov).
+
+## Desktop mouse support
+
+Implementované v `src/lib/input/mouse-handler.ts`:
+
+- Click na hernú obrazovku → `requestPointerLock()` (Web Pointer Lock API)
+- Relatívny pohyb myši cez `movementX/Y` → `adapter.pointerMove(deltaX, deltaY)`
+- Ľavé (0), pravé (2), stredné (1) tlačidlo + koliesko (`pointerWheel`)
+- Escape uvoľní pointer lock automaticky (native browser behavior)
+- `onPointerLockChange` callback pre zobrazenie krátkeho vysvetlenia
+- `enablePointerLock` flag — vypnuteľné v nastaveniach
+- Fallback s absolútnou polohou pre zariadenia bez Pointer Lock
+- `releaseAll()` uvoľní všetky stlačené tlačidlá pri strate lock-u
+
+## Desktop gamepad support
+
+Implementované v `src/lib/input/input-bridge.ts` (zastrešuje gamepad + keyboard + mouse):
+
+- Podpora: Xbox, Xbox-compatible, DualShock 4, DualSense, Nintendo-style Bluetooth, generické USB/Bluetooth gamepady
+- `gamepadconnected` / `gamepaddisconnected` eventy
+- `requestAnimationFrame` polling — iba počas aktívnej hry
+- Štandardné W3C mapovanie tlačidiel (`STANDARD_BUTTON_MAP`) + osí (`STANDARD_AXIS_MAP`)
+- Deadzone (default 0.15) + sensitivity (default 1.0) + invert Y os (voliteľné)
+- `detectGamepadProfile(gamepadId)` rozpozná xbox/dualshock/dualsense/generic
+- Vibrácie cez `gamepad.vibrationActuator.playEffect("dual-rumble", ...)` ak je dostupné
+- Pri odpojení ovládača:
+  - Uvoľní všetky aktívne vstupy
+  - Resetuje osi na 0
+  - Voliteľne pozastaví hru (`pauseOnGamepadDisconnect: true`)
+  - Notifikuje UI cez `onGamepadDisconnected` callback
+
+Testy: `tests/unit/gamepad-mapping.test.ts` (12 testov).
+
+## Android gamepad support
+
+Implementované v `src/lib/native/native-gamepad.ts` + `android/app/src/main/java/sk/jano/bavkac/NativeGamepadPlugin.kt`:
+
+- Na Androide sa používa natívne Android input API (KeyEvent + MotionEvent) — spoľahlivejšie než WebView Gamepad API
+- `NativeGamepadPlugin` (Kotlin) forwarduje eventy do JavaScriptu cez Capacitor `notifyListeners("nativeGamepadEvent", data)`
+- `handleKeyDown/Up` spracováva `KeyEvent` z `MainActivity.onKeyDown`
+- `handleMotionEvent` spracováva `MotionEvent.ACTION_MOVE` z `onGenericMotionEvent`
+- Podpora:
+  - `SOURCE_GAMEPAD` (96) a `SOURCE_JOYSTICK` (16)
+  - `AXIS_X` (0), `AXIS_Y` (1), `AXIS_Z` (11), `AXIS_RZ` (14) — analógy
+  - `AXIS_HAT_X/Y` (15, 16) — D-pad
+  - `AXIS_LTRIGGER/RTRIGGER` (17, 18) — L2/R2
+  - `KEYCODE_BUTTON_A/B/X/Y` (96/97/99/100) — face
+  - `KEYCODE_BUTTON_L1/R1/L2/R2` (102-105) — shoulders/triggers
+  - `KEYCODE_BUTTON_THUMBL/R` (106/107) — L3/R3
+  - `KEYCODE_BUTTON_SELECT/START` (109/108)
+  - `KEYCODE_DPAD_UP/DOWN/LEFT/RIGHT/CENTER` (19-23)
+  - `KEYCODE_BACK` (4), `KEYCODE_MENU` (82)
+- Vibrácie cez `Vibrator` API (s fallbackom pre API < O)
+- JS rozhranie v `native-gamepad.ts`: `getNativeGamepadPlugin()`, `isNativeGamepadAvailable()`, `ANDROID_KEYCODE_TO_CONTROL`, `ANDROID_AXIS_TO_CONTROL`
+
+Testy: `tests/unit/android-gamepad-mapping.test.ts` (10 testov).
+
+## Android application
+
+Architektúra: Capacitor + Next.js (webDir = `out` po `next build`)
+
+Štruktúra `android/`:
+- `build.gradle` — top-level s Kotlin 1.9.22, AGP 8.2.2
+- `settings.gradle` — `:app` + `:capacitor-android`
+- `app/build.gradle` — minSdk 26 (Android 8), targetSdk 34, signing config z CI secrets
+- `app/src/main/AndroidManifest.xml`:
+  - `<uses-feature android.software.leanback>` (voliteľné — TV)
+  - `<uses-feature android.hardware.gamepad>` (voliteľné)
+  - `<uses-feature android.hardware.usb.host>` (voliteľné)
+  - `MainActivity` (LAUNCHER pre mobily/tablety)
+  - `TvActivity` (LEANBACK_LAUNCHER pre TV, landscape, fullscreen)
+  - Žiadne `MANAGE_EXTERNAL_STORAGE`
+  - Povolenia: INTERNET, VIBRATE, WAKE_LOCK, FULLSCREEN, READ_EXTERNAL_STORAGE (max SDK 32)
+- `app/src/main/res/values/strings.xml`: `app_name = "Jaňo še chce bavkac"` (s diakritikou)
+- `app/src/main/res/values/styles.xml`: tmavá téma (#0a0a14)
+- `app/src/main/java/sk/jano/bavkac/`:
+  - `MainActivity.kt` — Capacitor `BridgeActivity` + registrácia pluginov
+  - `TvActivity.kt` — rovnaké, ale pre TV launcher
+  - `NativeFullscreenPlugin.kt` — immersive + keep screen on + orientation + cutout
+  - `NativeGamepadPlugin.kt` — KeyEvent/MotionEvent → JS eventy
+  - `NativeStoragePlugin.kt` — streaming copy z Content URI do app storage
+  - `NativeFilePickerPlugin.kt` — SAF (ACTION_OPEN_DOCUMENT / OPEN_DOCUMENT_TREE)
+- `capacitor.config.ts` — appId `sk.jano.bavkac`, appName `Jaňo še chce bavkac`
+
+Application ID: `sk.jano.bavkac`
+Application label: `Jaňo še chce bavkac`
+
+## Android TV support
+
+- `AndroidManifest.xml` obsahuje `<uses-feature android.software.leanback>` (required=false)
+- Samostatná `TvActivity` s `LEANBACK_LAUNCHER` intent filter
+- `android:screenOrientation="landscape"` a fullscreen theme
+- `android:banner="@drawable/tv_banner"` pre TV launcher
+- D-pad navigácia: focus management cez `android:focusable="true"` na interaktívnych prvkoch
+- Back tlačidlo: `KEYCODE_BACK` mapované na `"back"` control
+- TV layout: väčšie texty, väčšie karty, jasný focus border (CSS pravidlá v `globals.css`)
+- Všetky hlavné funkcie dostupné cez TV diaľkový ovládač + gamepad:
+  - Otvoriť domovskú stránku
+  - Prechádzať knižnicu
+  - Importovať hru (z USB cez SAF)
+  - Otvoriť detail hry
+  - Spustiť hru
+  - Ovládať hru gamepadom
+  - Uložiť pozíciu (cez gamepad Start + Select → save dialog)
+  - Ukončiť hru (cez Back tlačidlo)
+
+Runtime detekcia (`getRuntimeInfo()`) vracia `platform: "android-tv"` ak:
+- `window.AndroidBridge.isTv()` vracia true, alebo
+- UA obsahuje "Android TV" / "GoogleTV" / "LEANBACK", alebo
+- URL má `?tv=1` parameter (pre testovanie)
+
+## USB import on desktop
+
+Implementované v `src/components/import/usb-folder-picker.tsx`:
+
+1. Používateľ klikne „Vybrať priečinok z USB"
+2. Ak je dostupné File System Access API (`window.showDirectoryPicker`), otvorí sa moderný directory picker so zoznamom jednotiek (vrátane USB kľúča)
+3. Aplikácia rekurzívne prejde priečinok cez `FileSystemDirectoryHandle.values()` a zachová relatívnu štruktúru
+4. Ak FSA nie je dostupné (Safari, Firefox), použije sa `<input type="file" webkitdirectory>` fallback
+5. Aplikácia automaticky NEprehľadáva zariadenia bez explicitného súhlasu používateľa
+
+Podporuje:
+- Výber jedného súboru
+- Výber viacerých súborov
+- Výber priečinka (zachová adresárovú štruktúru)
+
+## USB import on Android
+
+Implementované v `src/lib/native/native-file-picker.ts` + `NativeFilePickerPlugin.kt`:
+
+- Používa Android Storage Access Framework (SAF) — žiadne `MANAGE_EXTERNAL_STORAGE`
+- `ACTION_OPEN_DOCUMENT` s `EXTRA_ALLOW_MULTIPLE` pre viacnásobný výber
+- `ACTION_OPEN_DOCUMENT_TREE` pre výber priečinka
+- `persistableUriPermission` pre opätovný prístup
+- `DocumentFile` API na prechádzanie priečinka
+- `ContentResolver.openInputStream()` + 64 KB buffer pre streaming copy
+- Veľké súbory sa NEkopírujú cez Base64 ani ArrayBuffer — natívna vrstva ich priamo streamuje do app-specific storage
+- JavaScriptu sa vrátia iba metadáta: `internalPath`, `name`, `size`, `mimeType`, `sourceUri`
+- `releasePermission(uri)` na uvoľnenie persistable URI permission
+
+JS rozhranie:
+```typescript
+interface AndroidFilePickerPlugin {
+  pickFiles(options): Promise<PickedAndroidFile[]>;
+  pickDirectory(): Promise<PickedAndroidDirectory>;
+  copyToAppStorage(uri, destinationPath): Promise<CopyResult>;
+  releasePermission(uri): Promise<void>;
+}
+```
+
+Podporované zdroje: USB OTG, externé disky, interné úložisko.
+
+## APK distribution
+
+Implementované v `src/lib/android-release.ts` + `src/components/pwa/android-download-section.tsx`:
+
+Domovská stránka obsahuje sekciu „Stiahnuť aplikáciu" s:
+- Tlačidlom „Stiahnuť Android APK" (ak univerzálne APK), alebo
+- Tlačidlami „Stiahnuť pre Android" + „Stiahnuť pre Android TV" (ak oddelené buildy)
+- Verziou, veľkosťou, dátumom vydania, min. Android verziou
+- SHA-256 kontrolným súčtom (s tlačidlom kopírovať)
+- Stručným návodom na inštaláciu (v `<details>`)
+
+Ak APK ešte neexistuje (`NEXT_PUBLIC_ANDROID_DOWNLOAD_ENABLED=false` a `public/downloads/android-release.json` má `enabled: false`):
+- Zobrazí sa karta „Android aplikácia sa pripravuje" s jasným vysvetlením
+- Tlačidlo sa NEzobrazí ako funkčné
+- Žiadny falošný download link
+
+ zdroje metadata:
+1. Primárne: env premenné (`NEXT_PUBLIC_ANDROID_*`)
+2. Sekundárne: `public/downloads/android-release.json` (statický súbor)
+3. Fallback: null → „pripravuje sa"
+
+APK sa neumiestňuje do Next.js bundle — je v GitHub Releases ako asset.
+
+## Android build and signing
+
+CI workflow v `.github/workflows/ci.yml` (job `android-build`):
+
+1. Trigger: push na main alebo tag `v*` (nie pre PR)
+2. Checkout kódu
+3. Setup Node.js 20 + JDK 17 + Android SDK 34
+4. `npm ci`
+5. `npx next build` (statický export pre WebView)
+6. `npm install -D @capacitor/cli`
+7. `npx cap sync android`
+8. Dekódovanie keystore z `ANDROID_KEYSTORE_BASE64` secret → `android/release.keystore`
+9. Zápis `android/gradle.properties` so signing config (passwords z secrets)
+10. `./gradlew assembleRelease --no-daemon`
+11. Výpočet SHA-256: `sha256sum *.apk`
+12. Upload APK artifactu (30-dňová retencia)
+13. Pri tagu: vytvorenie GitHub Release cez `softprops/action-gh-release@v2` s APK ako asset + SHA-256 v body
+14. Pri tagu: aktualizácia `public/downloads/android-release.json` s release URL
+
+Tajné údaje (NIE v repozitári):
+- `ANDROID_KEYSTORE_BASE64` — base64-encoded .keystore súbor
+- `ANDROID_KEYSTORE_PASSWORD` — heslo k keystore
+- `ANDROID_KEY_ALIAS` — alias kľúča
+- `ANDROID_KEY_PASSWORD` — heslo k samotnému kľúču
+
+Keystore sa NEukladá do Git repozitára — vzniká iba v CI z secretu.
+
+## Known device compatibility issues
+
+1. **WebView Gamepad API** — v Android WebView nefunguje spoľahlivo pre všetky ovládače (najmä Bluetooth gamepady). Riešenie: `NativeGamepadPlugin` (Kotlin) priamo spracuje KeyEvent/MotionEvent.
+2. **iOS Safari OPFS** — obmedzená kapacita, pomalšie zápisy. Aplikácia funguje, ale pre veľké hry môže byť pomalé.
+3. **iOS Safari Pointer Lock** — nefunguje v PWA režime (pridanie na plochu). Fallback: absolútny pohyb myši.
+4. **Firefox bez FSA** — `showDirectoryPicker()` nie je dostupné, fallback na `webkitdirectory`.
+5. **Android TV SAF picker** — systémový picker funguje s D-padom na väčšine TV boxov. Ak nie je použiteľný, aplikácia má pripravený vlastný DocumentFile browser (TODO pre ďalšiu verziu).
+6. **PS2 na TV** — experimentálne, zatiaľ vypnuté aj na desktope.
+7. **Numerická klávesnica** — `KeyboardEvent.code` rozlišuje `Digit1` (horný rad) a `Numpad1` (numlock). Mapovanie je implementované pre obe.
+8. **CapsLock / NumLock stav** — `KeyboardEvent.code` nezohľadňuje stav lock klávesov, takže `KeyA` je rovnaký kód nech je CapsLock zapnutý alebo nie. To je požadované správanie pre emulátory (hra si spravuje vlastný keymap).
+9. **WASD vs. klávesnica layout** — `code` identifikátor je založený na fyzickej pozícii, nie logickom znaku, takže hra nastavená na WASD funguje aj na QWERTZ klávesniciach (kde je W na rovnakej pozícii).
+10. **Android cutout** — `LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES` pre API 28+ zabezpečuje, že obsah sa zobrazí aj v oblasti výrezov (notch).

@@ -178,3 +178,49 @@ Stage Summary:
 - Všetky 12 etáp z promptu dokončené
 - 55 unit testov prešlo
 - Build/lint/typecheck čistý
+
+---
+Task ID: EXTEND-jano
+Agent: orchestrator
+Task: Rozšírenie projektu podľa doplňujúceho promptu — premenovanie na JAŇO ŠE CHCE BAVKAC + PC controls + Android app + Android TV + USB import + APK distribution
+
+Work Log:
+- Premenované: úvodná stránka, hlavička, PWA manifest, metadata, offline.html
+- Pridaný src/lib/app-identity.ts (APP_NAME, APP_PACKAGE_ID, APP_SLUG)
+- Aktualizované .env.example o NEXT_PUBLIC_APP_NAME a Android download premenné
+- EmulatorInputAdapter interface (src/emulators/core/emulator-input-adapter.ts) — keyDown/Up, pointerMove/Down/Up/Wheel, gamepadButton/Axis, releaseAllInputs
+- KeyboardHandler (src/lib/input/keyboard-handler.ts) — KeyboardEvent.code, e.repeat guard, focus/visibility/blur release, system shortcut blocking
+- MouseHandler (src/lib/input/mouse-handler.ts) — Pointer Lock API, relatívny pohyb, Escape uvoľní
+- InputBridge (src/lib/input/input-bridge.ts) — integruje keyboard + mouse + gamepad, RAF polling iba počas hry, disconnect handling s release + pause
+- RuntimePlatform detection (src/lib/native/native-platform.ts) — web/pwa/android-mobile/android-tablet/android-tv, kombinuje bridge + feature detection + UA
+- Native pluginy (src/lib/native/): native-file-picker.ts (SAF), native-gamepad.ts (KeyEvent/MotionEvent mapping), native-storage.ts (streaming copy), native-fullscreen.ts (immersive + landscape + keep screen on)
+- Globálne typy (src/types/native-globals.d.ts) — Capacitor, AndroidBridge, showDirectoryPicker
+- UsbFolderPicker (src/components/import/usb-folder-picker.tsx) — File System Access API + webkitdirectory fallback pre PC, SAF pre Android
+- Domovská stránka prepísaná: názov JAŇO ŠE CHCE BAVKAC, sekcia podporovaných zariadení, 3 hlavné tlačidlá (Otvoriť emulátor / Importovať / Stiahnuť Android), AndroidDownloadSection
+- AndroidReleaseInfo loader + public/downloads/android-release.json (enabled=false — "pripravuje sa")
+- Capacitor config (capacitor.config.ts) — appId sk.jano.bavkac, webDir out, native pluginy
+- Android projekt scaffold (android/):
+  - build.gradle, settings.gradle, app/build.gradle (minSdk 26, targetSdk 34)
+  - AndroidManifest.xml — MainActivity (LAUNCHER) + TvActivity (LEANBACK_LAUNCHER, landscape)
+  - res/values/strings.xml (app_name s diakritikou), styles.xml
+  - Kotlin pluginy: NativeFullscreenPlugin, NativeGamepadPlugin (KeyEvent/MotionEvent), NativeStoragePlugin (streaming copy), NativeFilePickerPlugin (SAF)
+- GitHub Actions CI workflow aktualizovaný o Android build job:
+  - Web quality (typecheck/lint/test/build)
+  - Android build (JDK 17, Android SDK, npm ci, cap sync, signing z secrets, assembleRelease, SHA-256, upload artifact, GitHub Release pri tagu)
+- Pridané nové unit testy:
+  - keyboard-handler.test.ts (11 testov — codeToControl mapping, focus loss release, auto-repeat)
+  - gamepad-mapping.test.ts (12 testov — standard button/axis map, deadzone, sensitivity, profile detection)
+  - android-gamepad-mapping.test.ts (10 testov — Android keycode/axis mapping)
+  - runtime-detection.test.ts (11 testov — runtime info, file picker null na webe, PickedAndroidFile shape)
+
+Stage Summary:
+- TypeScript strict: 0 chýb
+- ESLint: 0 chýb, 0 warnings
+- Vitest: 99/99 testov prešlo (10 test files)
+- Všetky routes 200 OK
+- Aplikácia premenovaná na JAŇO ŠE CHCE BAVKAC
+- PC controls (keyboard + mouse + gamepad) implementované cez jednotný EmulatorInputAdapter
+- Android projekt scaffold pripravený (reálny build v CI cez GitHub Actions)
+- APK download sekcia: korektne vypnutá ("pripravuje sa") kým NEXT_PUBLIC_ANDROID_DOWNLOAD_ENABLED=false
+- 4 Kotlin native pluginy: Fullscreen, Gamepad, Storage, FilePicker
+- USB import (PC FSA + webkitdirectory + Android SAF)

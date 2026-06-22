@@ -86,7 +86,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className="font-display text-sm tracking-tight text-primary"
               style={{ letterSpacing: "0.05em" }}
             >
-              RETROCLOUD
+              JAŇO ŠE CHCE BAVKAC
             </span>
           </Link>
           <div className="ml-auto hidden md:flex items-center gap-2 text-xs text-muted-foreground">

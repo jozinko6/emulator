@@ -1,7 +1,7 @@
 {
-  "name": "RETROCLOUD",
-  "short_name": "RETROCLOUD",
-  "description": "Lokálne orientovaný online emulátor hier pre DOS, PlayStation 1 a PlayStation 2.",
+  "name": "Jaňo še chce bavkac",
+  "short_name": "Jaňo",
+  "description": "Emulátor vlastných DOS a PlayStation hier pre PC, Android a Android TV.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

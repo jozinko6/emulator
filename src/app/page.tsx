@@ -11,12 +11,20 @@ import {
   HardDrive,
   Cpu,
   AlertCircle,
+  Smartphone,
+  Monitor,
+  Tv,
+  Keyboard,
+  Usb,
+  Bluetooth,
+  Download,
 } from "lucide-react";
 import { useLibraryStore } from "@/stores/library-store";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { StorageMeter } from "@/components/pwa/storage-meter";
+import { AndroidDownloadSection } from "@/components/pwa/android-download-section";
+import { getRuntimeInfo, type RuntimeInfo } from "@/lib/native/native-platform";
 import type { GameRecord } from "@/types/game";
 import type { EmulatorPlatform } from "@/types/emulator";
 
@@ -34,17 +42,10 @@ const PLATFORM_COLOR: Record<EmulatorPlatform, string> = {
 
 export default function HomePage() {
   const games = useLibraryStore((s) => s.games);
-  const [storage, setStorage] = useState<{
-    quota: number;
-    usage: number;
-    available: number;
-  } | null>(null);
+  const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
 
   useEffect(() => {
-    import("@/lib/storage/opfs")
-      .then(({ getStorageEstimate }) => getStorageEstimate())
-      .then(setStorage)
-      .catch(() => {});
+    setRuntime(getRuntimeInfo());
   }, []);
 
   const continuePlaying = games
@@ -63,28 +64,44 @@ export default function HomePage() {
     games.filter((g) => g.platform === p).slice(0, 6);
 
   const ps2Enabled = process.env.NEXT_PUBLIC_ENABLE_PS2 === "true";
+  const isEmpty = games.length === 0;
 
   return (
     <div className="container mx-auto px-4 py-6 space-y-8 max-w-7xl">
-      {/* Hero / Empty state */}
-      {games.length === 0 ? (
+      {/* Hero */}
+      {isEmpty ? (
         <Card className="border-dashed border-2 border-border bg-card/50 p-8 md:p-12 text-center">
           <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
             <Gamepad2 className="h-8 w-8 text-primary" />
           </div>
-          <h1 className="font-display text-2xl text-primary mb-2">
-            Vitajte v RETROCLOUD
+          <h1 className="font-display text-2xl md:text-3xl text-primary mb-2 tracking-tight">
+            JAŇO ŠE CHCE BAVKAC
           </h1>
-          <p className="text-muted-foreground max-w-md mx-auto mb-6">
-            Lokálny emulátor hier pre DOS, PlayStation 1 a PlayStation 2. Vaše hry
-            zostávajú vo vašom zariadení — nikdy sa neodosielajú na server.
+          <p className="text-muted-foreground max-w-md mx-auto mb-6 text-sm md:text-base">
+            Zahraj si svoje DOS a PlayStation hry na počítači, mobile, tablete
+            alebo Android TV. Hry zostávajú vo vašom zariadení — nikdy sa
+            neodosielajú na server.
           </p>
-          <Button asChild>
-            <Link href="/import">
-              <Upload className="h-4 w-4 mr-2" />
-              Importovať prvú hru
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2 justify-center">
+            <Button asChild>
+              <Link href="/library">
+                <Play className="h-4 w-4 mr-2" />
+                Otvoriť emulátor
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/import">
+                <Upload className="h-4 w-4 mr-2" />
+                Importovať hru
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <a href="#download-android">
+                <Download className="h-4 w-4 mr-2" />
+                Stiahnuť Android aplikáciu
+              </a>
+            </Button>
+          </div>
         </Card>
       ) : (
         <section>
@@ -117,6 +134,21 @@ export default function HomePage() {
         </section>
       )}
 
+      {/* Supported devices section */}
+      <section>
+        <h2 className="font-display text-xs uppercase tracking-widest text-muted-foreground mb-3">
+          Podporované zariadenia
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <DeviceTile icon={Monitor} label="PC a notebook" sub="Windows · Linux · macOS" />
+          <DeviceTile icon={Smartphone} label="Android telefón" sub="Tablet aj mobil" />
+          <DeviceTile icon={Tv} label="Android TV" sub="Google TV · TV box" />
+          <DeviceTile icon={Gamepad2} label="Gamepad" sub="USB · Bluetooth" />
+          <DeviceTile icon={Keyboard} label="Klávesnica + myš" sub="Plná podpora na PC" />
+          <DeviceTile icon={Usb} label="USB kľúč" sub="Import z disku" />
+        </div>
+      </section>
+
       {/* Quick actions */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Button asChild variant="outline" className="h-auto py-4 flex-col gap-2">
@@ -145,7 +177,7 @@ export default function HomePage() {
         </Button>
       </section>
 
-      {/* Recent */}
+      {/* Recent + Favorites + platform sections */}
       {recent.length > 0 && (
         <section>
           <SectionHeader title="Nedávno hrané" icon={Clock} href="/library" />
@@ -153,7 +185,6 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* Favorites */}
       {favorites.length > 0 && (
         <section>
           <SectionHeader title="Obľúbené" icon={Heart} href="/library" />
@@ -161,7 +192,6 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* DOS */}
       <section>
         <SectionHeader title="DOS" icon={Gamepad2} href="/library?platform=dos" accent="text-amber-400" />
         {byPlatform("dos").length > 0 ? (
@@ -171,7 +201,6 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* PS1 */}
       <section>
         <SectionHeader title="PlayStation" icon={Gamepad2} href="/library?platform=ps1" accent="text-emerald-400" />
         {byPlatform("ps1").length > 0 ? (
@@ -181,7 +210,6 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* PS2 */}
       <section>
         <SectionHeader
           title="PlayStation 2"
@@ -212,6 +240,27 @@ export default function HomePage() {
         )}
       </section>
 
+      {/* Android download section */}
+      <section id="download-android">
+        <SectionHeader title="Stiahnuť aplikáciu" icon={Download} />
+        <AndroidDownloadSection />
+        <Card className="mt-3 p-4 bg-card/30">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            <strong className="text-foreground">Android aplikácia funguje:</strong>{" "}
+            na telefónoch, na tabletoch, na Android TV a Google TV.
+            Podporuje USB a Bluetooth gamepady, umožňuje import z USB kľúča
+            cez Storage Access Framework, funguje offline po prvom načítaní.
+            Hry zostávajú lokálne v app-specific storage — nikdy sa neodosielajú na server.
+          </p>
+          {runtime && (
+            <p className="text-[10px] text-muted-foreground mt-2">
+              Detekované prostredie:{" "}
+              <span className="font-mono text-foreground/70">{runtime.platform}</span>
+            </p>
+          )}
+        </Card>
+      </section>
+
       {/* Storage status */}
       <section>
         <SectionHeader title="Stav lokálneho úložiska" icon={HardDrive} />
@@ -220,6 +269,24 @@ export default function HomePage() {
         </Card>
       </section>
     </div>
+  );
+}
+
+function DeviceTile({
+  icon: Icon,
+  label,
+  sub,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  sub: string;
+}) {
+  return (
+    <Card className="p-3 text-center bg-card/50">
+      <Icon className="h-6 w-6 mx-auto text-primary mb-2" />
+      <p className="text-xs font-medium">{label}</p>
+      <p className="text-[10px] text-muted-foreground mt-0.5">{sub}</p>
+    </Card>
   );
 }
 
@@ -264,12 +331,7 @@ function GameRow({ games }: { games: GameRecord[] }) {
           <Card className="overflow-hidden bg-card hover:ring-1 hover:ring-primary/40 transition-all">
             <div className="aspect-[3/4] bg-gradient-to-br from-primary/10 to-fuchsia-500/5 flex items-center justify-center">
               {g.coverUrl ? (
-                 
-                <img
-                  src={g.coverUrl}
-                  alt={g.name}
-                  className="w-full h-full object-cover"
-                />
+                <img src={g.coverUrl} alt={g.name} className="w-full h-full object-cover" />
               ) : (
                 <Gamepad2 className="h-8 w-8 text-primary/30" />
               )}

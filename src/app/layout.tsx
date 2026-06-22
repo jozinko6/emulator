@@ -22,11 +22,11 @@ const displayFont = Press_Start_2P({
 });
 
 export const metadata: Metadata = {
-  title: "RETROCLOUD — Lokálny emulátor hier",
+  title: "Jaňo še chce bavkac — Lokálny emulátor hier",
   description:
-    "Lokálne orientovaný online emulátor a správca vlastných záložných kópií hier pre DOS, PlayStation 1 a PlayStation 2. Hry zostávajú vo vašom zariadení.",
+    "Lokálne orientovaný online emulátor a správca vlastných záložných kópií hier pre DOS, PlayStation 1 a PlayStation 2. Hry zostávajú vo vašom zariadení. Funguje na PC, Androide a Android TV.",
   keywords: [
-    "RETROCLOUD",
+    "Jaňo še chce bavkac",
     "DOS emulator",
     "PlayStation 1",
     "PS1",
@@ -35,9 +35,11 @@ export const metadata: Metadata = {
     "EmulatorJS",
     "PWA",
     "OPFS",
+    "Android",
+    "Android TV",
   ],
-  authors: [{ name: "RETROCLOUD" }],
-  applicationName: "RETROCLOUD",
+  authors: [{ name: "Jaňo še chce bavkac" }],
+  applicationName: "Jaňo še chce bavkac",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -48,12 +50,12 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: "RETROCLOUD",
+    title: "Jaňo še chce bavkac",
     statusBarStyle: "black-translucent",
   },
   openGraph: {
-    title: "RETROCLOUD",
-    description: "Lokálny emulátor hier pre DOS, PS1 a PS2.",
+    title: "Jaňo še chce bavkac",
+    description: "Emulátor vlastných DOS a PlayStation hier pre PC, Android a Android TV.",
     type: "website",
   },
 };
