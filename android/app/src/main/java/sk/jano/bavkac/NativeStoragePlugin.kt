@@ -42,7 +42,7 @@ class NativeStoragePlugin : Plugin() {
         result.put("totalBytes", total)
         result.put("filesDir", filesDir.absolutePath)
         result.put("cacheDir", cacheDir.absolutePath)
-        result.put("externalFilesDir", externalFilesDir?.absolutePath ?: JSONObject.NULL)
+        result.put("externalFilesDir", externalFilesDir?.absolutePath ?: JSObject.NULL)
         call.resolve(result)
     }
 

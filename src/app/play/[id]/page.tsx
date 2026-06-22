@@ -21,6 +21,9 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
+import { useGamepadInput } from "@/lib/input/use-gamepad-input";
+import { useKeyboardInput } from "@/lib/input/use-keyboard-input";
+import { useMouseInput } from "@/lib/input/use-mouse-input";
 import type { GameRecord } from "@/types/game";
 import type { EmulatorAdapter, EmulatorEvent, ImportedGame } from "@/types/emulator";
 import { RetroCloudError } from "@/types/errors";
@@ -45,6 +48,7 @@ export default function PlayPage({ params }: { params: Promise<{ id: string }> }
   const [muted, setMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPs2Disabled, setIsPs2Disabled] = useState(false);
+  const [savingState, setSavingState] = useState(false);
 
   const setEmulatorState = useEmulatorStore((s) => s.setState);
   const setEmulatorActive = useEmulatorStore((s) => s.setActive);
@@ -115,16 +119,21 @@ export default function PlayPage({ params }: { params: Promise<{ id: string }> }
 
         await adapter.initialize(containerRef.current);
         await adapter.loadGame(imported);
-
-        if (loadSlot) {
-          try {
-            await adapter.loadState(parseInt(loadSlot, 10));
-          } catch {}
-        }
-
         await adapter.start();
         setEmulatorActive(g.platform, g.id);
         setLoading(false);
+
+        // Load save state AFTER start() — per prompt section 18
+        // Preferuje sa tok: initialize → loadGame → start → waitForReady → loadState
+        if (loadSlot) {
+          try {
+            await adapter.loadState(parseInt(loadSlot, 10));
+          } catch (e) {
+            console.warn("Failed to load save state:", e);
+            setError("Uloženie sa nepodarilo načítať. Hra bola spustená od začiatku.");
+            setTimeout(() => setError(null), 4000);
+          }
+        }
 
         // Record play session
         const sessionId = crypto.randomUUID();
@@ -137,14 +146,67 @@ export default function PlayPage({ params }: { params: Promise<{ id: string }> }
           saveStateSlotUsed: loadSlot ? parseInt(loadSlot, 10) : undefined,
         });
 
+        // Autosave interval (90s) — per prompt section 19
+        const settings = useSettingsStore.getState();
+        const autoSaveInterval = settings.isAutoSave(g.platform)
+          ? setInterval(async () => {
+              try {
+                setSavingState(true);
+                await adapter.saveState(0); // slot 0 = auto-save
+              } catch (e) {
+                console.warn("Periodic autosave failed:", e);
+              } finally {
+                setSavingState(false);
+              }
+            }, 90_000)
+          : null;
+
+        // Visibility change — autosave when tab hidden
+        const onVisibility = () => {
+          if (document.hidden) {
+            adapter.pause().catch(() => undefined);
+            if (settings.isAutoSave(g.platform)) {
+              adapter.saveState(0).catch((e) =>
+                console.warn("Visibility autosave failed:", e)
+              );
+            }
+          }
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+
+        // Capacitor appStateChange — autosave on background (Android)
+        let appStateListener: { remove: () => void } | null = null;
+        try {
+          const { App: CapacitorApp } = await import("@capacitor/app");
+          appStateListener = await CapacitorApp.addListener(
+            "appStateChange",
+            ({ isActive }: { isActive: boolean }) => {
+              if (!isActive && settings.isAutoSave(g.platform)) {
+                adapter
+                  .saveState(0)
+                  .catch((e) => console.warn("App background autosave failed:", e));
+              }
+            }
+          );
+        } catch {
+          // Capacitor App plugin not available on web — not an error
+        }
+
         // Return cleanup function
         return async () => {
+          if (autoSaveInterval) clearInterval(autoSaveInterval);
+          document.removeEventListener("visibilitychange", onVisibility);
+          if (appStateListener) {
+            appStateListener.remove();
+            appStateListener = null;
+          }
+
           const endedAt = Date.now();
           const durationSeconds = Math.floor((endedAt - startedAt) / 1000);
           try {
-            const settings = useSettingsStore.getState();
-            if (settings.isAutoSave(g.platform)) {
-              await adapter.saveState(0); // slot 0 = auto-save
+            const settingsNow = useSettingsStore.getState();
+            if (settingsNow.isAutoSave(g.platform)) {
+              await adapter.saveState(0); // final autosave on exit
             }
             await putPlaySession({
               id: sessionId,
@@ -154,8 +216,8 @@ export default function PlayPage({ params }: { params: Promise<{ id: string }> }
               durationSeconds,
             });
             await adapter.destroy();
-          } catch {
-            // Logged via adapter subscribe — avoid silent retry loop
+          } catch (e) {
+            console.warn("Cleanup failed:", e);
           }
           adapterRef.current = null;
           emulatorReset();
@@ -179,8 +241,36 @@ export default function PlayPage({ params }: { params: Promise<{ id: string }> }
         }
       });
     };
-     
-  }, [id]);
+  }, [id, loadSlot, setEmulatorState, setEmulatorActive, setEmulatorError, emulatorReset]);
+
+  // Active gamepad + keyboard input bridges — per prompt sections 10, 11.
+  // Polls navigator.getGamepads() via RAF, captures KeyboardEvent.code,
+  // F5 = Quick Save, F9 = Quick Load.
+  const isPlaying = !loading && !error && !!game;
+  useGamepadInput({
+    adapter: adapterRef.current,
+    enabled: isPlaying,
+  });
+  useKeyboardInput({
+    adapter: adapterRef.current,
+    enabled: isPlaying,
+    onQuickSave: () => {
+      setSavingState(true);
+      adapterRef.current?.saveState(1).finally(() => setSavingState(false));
+    },
+    onQuickLoad: () => {
+      adapterRef.current?.loadState(1).catch((e) => {
+        console.warn("Quick load failed:", e);
+        setError("Načítanie sa nepodarilo.");
+        setTimeout(() => setError(null), 3000);
+      });
+    },
+  });
+  useMouseInput({
+    adapter: adapterRef.current,
+    enabled: isPlaying && game?.platform === "dos",
+    target: containerRef.current,
+  });
 
   // Auto-hide controls after 3s of inactivity
   useEffect(() => {

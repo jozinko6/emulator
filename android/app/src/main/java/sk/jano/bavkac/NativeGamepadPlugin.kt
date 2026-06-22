@@ -1,5 +1,8 @@
 package sk.jano.bavkac
 
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -10,38 +13,45 @@ import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 
 /**
- * NativeGamepadPlugin — per prompt section 5.
+ * NativeGamepadPlugin — per prompt section 5 + 9.
  *
  * Native Android input API (KeyEvent / MotionEvent) provides more reliable
  * gamepad support than WebView's Gamepad API. This plugin forwards
  * SOURCE_GAMEPAD / SOURCE_JOYSTICK events to JavaScript via notifyListeners().
  *
- * Supports:
- *   - KeyEvent for D-pad, Start, Select, L3, R3, face buttons (A/B/X/Y), L1/R1
- *   - MotionEvent for analog sticks (X, Y, Z, RZ), L2/R2 triggers, HAT switch
- *   - Multiple connected controllers
- *   - Vibration via Vibrator API
+ * Lifecycle:
+ *   - inactive (default) — events from BaseGameActivity are NOT consumed
+ *   - active — start() called by JS when game starts; events are forwarded
+ *   - stop() — release all pressed buttons, reset axes, set inactive
+ *
+ * JS listens on "nativeGamepadEvent" channel.
  */
 @CapacitorPlugin(name = "NativeGamepad")
 class NativeGamepadPlugin : Plugin() {
 
-    private var running = false
+    @Volatile
+    private var active = false
     private val pressedButtons = mutableSetOf<Int>()
+    private val axesState = mutableMapOf<String, Float>()
 
+    /**
+     * JS calls this when the game starts. After this, all gamepad KeyEvents
+     * and MotionEvents from BaseGameActivity are forwarded to JS.
+     */
     @PluginMethod
     fun start(call: PluginCall) {
-        running = true
+        active = true
         call.resolve()
     }
 
+    /**
+     * JS calls this when the game ends. Releases all pressed buttons and
+     * resets axes to 0. Sets state to inactive.
+     */
     @PluginMethod
     fun stop(call: PluginCall) {
-        running = false
-        // Release all pressed buttons to JS
-        for (key in pressedButtons.toList()) {
-            emitKeyEvent(key, false)
-        }
-        pressedButtons.clear()
+        releaseAll()
+        active = false
         call.resolve()
     }
 
@@ -50,8 +60,7 @@ class NativeGamepadPlugin : Plugin() {
         val devices = mutableListOf<JSObject>()
         val ids = InputDevice.getDeviceIds()
         for (id in ids) {
-            val device = InputDevice.getDevice(id)
-            if (device == null) continue
+            val device = InputDevice.getDevice(id) ?: continue
             val sources = device.sources
             if (sources and InputDevice.SOURCE_GAMEPAD == InputDevice.SOURCE_GAMEPAD ||
                 sources and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK
@@ -76,14 +85,12 @@ class NativeGamepadPlugin : Plugin() {
             call.reject("Activity not available")
             return
         }
-        val vibrator = activity.getSystemService(android.content.Context.VIBRATOR_SERVICE)
-            as? android.os.Vibrator
+        @Suppress("DEPRECATION")
+        val vibrator = activity.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? Vibrator
         if (vibrator != null && vibrator.hasVibrator()) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val effect = android.os.VibrationEffect.createOneShot(
-                    duration.toLong(),
-                    ((intensity * 255).toInt()).coerceIn(1, 255)
-                )
+                val amplitude = ((intensity * 255).toInt()).coerceIn(1, 255)
+                val effect = VibrationEffect.createOneShot(duration.toLong(), amplitude)
                 vibrator.vibrate(effect)
             } else {
                 @Suppress("DEPRECATION")
@@ -93,20 +100,36 @@ class NativeGamepadPlugin : Plugin() {
         call.resolve()
     }
 
+    /** Returns true if game is running and plugin should consume gamepad events. */
+    fun isActive(): Boolean = active
+
+    /** Release all pressed buttons + reset axes. Called by BaseGameActivity.onStop. */
+    fun releaseAll() {
+        for (key in pressedButtons.toList()) {
+            emitKeyEvent(key, false)
+        }
+        pressedButtons.clear()
+        for ((axis, _) in axesState) {
+            emitAxisEvent(axis, 0f)
+        }
+        axesState.clear()
+    }
+
     /**
-     * Called from MainActivity.onKeyDown / TvActivity.onKeyDown.
+     * Called from BaseGameActivity.dispatchKeyEvent on ACTION_DOWN.
+     * Returns true if event was consumed (gamepad source + active state).
      */
     fun handleKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (!running) return false
-        if (event != null && event.repeatCount > 0) return false  // ignore repeat
-        if (pressedButtons.contains(keyCode)) return false  // already pressed
+        if (!active) return false
+        if (event != null && event.repeatCount > 0) return false
+        if (pressedButtons.contains(keyCode)) return false
         pressedButtons.add(keyCode)
         emitKeyEvent(keyCode, true)
         return true
     }
 
     fun handleKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
-        if (!running) return false
+        if (!active) return false
         if (!pressedButtons.contains(keyCode)) return false
         pressedButtons.remove(keyCode)
         emitKeyEvent(keyCode, false)
@@ -114,37 +137,29 @@ class NativeGamepadPlugin : Plugin() {
     }
 
     /**
-     * Called from MainActivity.onGenericMotionEvent / TvActivity.onGenericMotionEvent.
+     * Called from BaseGameActivity.onGenericMotionEvent on ACTION_MOVE.
      */
     fun handleMotionEvent(event: MotionEvent): Boolean {
-        if (!running) return false
+        if (!active) return false
         if (event.action != MotionEvent.ACTION_MOVE) return false
 
-        // Left stick: AXIS_X (0), AXIS_Y (1)
-        val lx = event.getAxisValue(MotionEvent.AXIS_X)
-        val ly = event.getAxisValue(MotionEvent.AXIS_Y)
-        emitAxisEvent("lstick-x", lx)
-        emitAxisEvent("lstick-y", ly)
-
-        // Right stick: AXIS_Z (11), AXIS_RZ (14)
-        val rx = event.getAxisValue(MotionEvent.AXIS_Z)
-        val ry = event.getAxisValue(MotionEvent.AXIS_RZ)
-        emitAxisEvent("rstick-x", rx)
-        emitAxisEvent("rstick-y", ry)
-
-        // D-pad hat
-        val hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X)
-        val hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y)
-        emitAxisEvent("dpad-x", hatX)
-        emitAxisEvent("dpad-y", hatY)
-
-        // Triggers L2 / R2
-        val l2 = event.getAxisValue(MotionEvent.AXIS_LTRIGGER)
-        val r2 = event.getAxisValue(MotionEvent.AXIS_RTRIGGER)
-        emitAxisEvent("l2-axis", l2)
-        emitAxisEvent("r2-axis", r2)
-
+        emitAxisIfChanged("lstick-x", event.getAxisValue(MotionEvent.AXIS_X))
+        emitAxisIfChanged("lstick-y", event.getAxisValue(MotionEvent.AXIS_Y))
+        emitAxisIfChanged("rstick-x", event.getAxisValue(MotionEvent.AXIS_Z))
+        emitAxisIfChanged("rstick-y", event.getAxisValue(MotionEvent.AXIS_RZ))
+        emitAxisIfChanged("dpad-x", event.getAxisValue(MotionEvent.AXIS_HAT_X))
+        emitAxisIfChanged("dpad-y", event.getAxisValue(MotionEvent.AXIS_HAT_Y))
+        emitAxisIfChanged("l2-axis", event.getAxisValue(MotionEvent.AXIS_LTRIGGER))
+        emitAxisIfChanged("r2-axis", event.getAxisValue(MotionEvent.AXIS_RTRIGGER))
         return true
+    }
+
+    private fun emitAxisIfChanged(axis: String, value: Float) {
+        val prev = axesState[axis]
+        if (prev == null || Math.abs(prev - value) > 0.01f) {
+            axesState[axis] = value
+            emitAxisEvent(axis, value)
+        }
     }
 
     private fun emitKeyEvent(keyCode: Int, pressed: Boolean) {

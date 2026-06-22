@@ -95,7 +95,12 @@ function createJob(fileName: string, fileSize: number, sourceType: string): Impo
   };
 }
 
-export function ImportWizard() {
+export interface ImportWizardProps {
+  /** Volá sa po úspešnom importe s ID vytvorenej hry. */
+  onComplete?: (gameId: string) => void;
+}
+
+export function ImportWizard({ onComplete }: ImportWizardProps = {}) {
   const {
     currentJob,
     setJob,
@@ -736,9 +741,12 @@ export function ImportWizard() {
         title: "Import dokončený",
         description: `Hra "${game.name}" bola pridaná do knižnice.`,
       });
+
+      // Notifikuj parent komponent o úspešnom importe
+      onComplete?.(gameId);
     },
      
-    [currentJob, updateJob, addGame, toast]
+    [currentJob, updateJob, addGame, toast, onComplete]
   );
 
   /**

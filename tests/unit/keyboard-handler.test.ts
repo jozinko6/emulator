@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { codeToControl, KeyboardHandler } from "@/lib/input/keyboard-handler";
-import { NullInputAdapter } from "@/emulators/core/emulator-input-adapter";
 
 describe("codeToControl", () => {
   it("maps letters KeyA..KeyZ", () => {
@@ -60,8 +59,6 @@ describe("codeToControl", () => {
 
 describe("KeyboardHandler release on focus loss", () => {
   it("releases all pressed keys on blur", () => {
-    const adapter = new NullInputAdapter();
-    const handler = new KeyboardHandler({ adapter });
     // Simulate that adapter receives keys by tracking calls
     const pressed: string[] = [];
     const released: string[] = [];

@@ -2,22 +2,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Permissions: minimal set. NO MANAGE_EXTERNAL_STORAGE per prompt section 11. -->
+    <!-- Minimal permission set. NO MANAGE_EXTERNAL_STORAGE per prompt section 11.
+         NO FULLSCREEN (deprecated). NO READ_EXTERNAL_STORAGE on API 26+ (SAF doesn't need it). -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.FULLSCREEN" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-    <!-- SAF does not require WRITE_EXTERNAL_STORAGE on API 26+ -->
 
-    <!-- Hardware features -->
+    <!-- Hardware features — all optional (required=false) so the APK installs on devices without them -->
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />
-    <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
-
-    <!-- Android TV support — Leanback launcher -->
+    <!-- Android TV support — leanback is optional so the same APK works on phones too -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
 
     <application
@@ -47,7 +42,9 @@
             </intent-filter>
         </activity>
 
-        <!-- Android TV launcher activity (Leanback) -->
+        <!-- Android TV launcher activity (Leanback).
+             Same APK installs on phones, tablets, and TV.
+             TV launcher picks this activity because of LEANBACK_LAUNCHER. -->
         <activity
             android:name=".TvActivity"
             android:exported="true"
@@ -61,10 +58,5 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- Capacitor -->
-        <meta-data
-            android:name="com.getcapacitor.ApplicationId"
-            android:value="sk.jano.bavkac" />
     </application>
 </manifest>

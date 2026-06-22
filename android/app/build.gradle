@@ -11,29 +11,53 @@ android {
         targetSdkVersion 34
         versionCode 1
         versionName "1.0.0"
-        // Android TV support
-        bundle {
-            density { enableSplit = true }
-            abi { enableSplit = true }
-            language { enableSplit = true }
+        // Single universal APK — no ABI splits (per prompt section 8)
+    }
+
+    // Release signing config — loaded from gradle.properties (set by CI from secrets).
+    // If secrets are absent, release build falls back to debug signing (unsigned release
+    // would be misleading). CI uses debug builds for PRs and signed release only on tags.
+    signingConfigs {
+        release {
+            def storeFilePath = project.findProperty("RELEASE_STORE_FILE")
+            def storePassword = project.findProperty("RELEASE_STORE_PASSWORD")
+            def keyAlias = project.findProperty("RELEASE_KEY_ALIAS")
+            def keyPassword = project.findProperty("RELEASE_KEY_PASSWORD")
+            if (storeFilePath != null && file(storeFilePath).exists()) {
+                storeFile file(storeFilePath)
+                storePassword storePassword
+                keyAlias keyAlias
+                keyPassword keyPassword
+            }
         }
+        // Debug config is automatic
     }
 
     buildTypes {
         debug {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            debuggable true
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
         }
         release {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            // Signing config injected from CI secrets via gradle.properties
-            signingConfig signingConfigs.findByName("release") ?: signingConfigs.debug
+            // Use release signing if keystore is configured, else fall back to debug
+            // (CI uses this for tag-based releases; for PRs debug APK is built instead)
+            def storeFilePath = project.findProperty("RELEASE_STORE_FILE")
+            if (storeFilePath != null && file(storeFilePath).exists()) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+                // NOTE: This APK is signed with debug key — not suitable for Play Store
+                // or stable updates. Use only for testing.
+            }
         }
     }
 
-    // Required for Capacitor
+    // Required for Capacitor (Java 17)
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -66,3 +90,5 @@ dependencies {
     // Gamepad support (KeyEvent / MotionEvent helpers)
     implementation 'androidx.core:core-ktx:1.12.0'
 }
+
+apply from: "capacitor.build.gradle"

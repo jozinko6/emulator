@@ -607,6 +607,37 @@ export class Ps1Adapter implements EmulatorAdapter {
   }
 
   /**
+   * Release all currently pressed gamepad / keyboard inputs.
+   * Per prompt section 13 — called on destroy, blur, pause, route change.
+   * PS1 EJS doesn't expose a public release API, so we just emit key-up events
+   * for the standard PS1 controls.
+   */
+  releaseAllInputs(): void {
+    // PS1 controls — send button-up for all 16 standard buttons
+    const allButtons = [
+      "face-a", "face-b", "face-x", "face-y",
+      "l1", "r1", "l2", "r2",
+      "select", "start", "l3", "r3",
+      "dpad-up", "dpad-down", "dpad-left", "dpad-right",
+    ];
+    for (const control of allButtons) {
+      try {
+        this.sendInput({ type: "button-up", control, value: 0, timestamp: Date.now() });
+      } catch {
+        // Ignored — control may not be currently pressed
+      }
+    }
+    // Reset analog axes to 0
+    for (const axis of ["lstick-x", "lstick-y", "rstick-x", "rstick-y"]) {
+      try {
+        this.sendInput({ type: "axis", control: axis, value: 0, timestamp: Date.now() });
+      } catch {
+        // Ignored
+      }
+    }
+  }
+
+  /**
    * Zničí emulátor — kompletný cleanup:
    *  - close AudioContext
    *  - revoke Blob URLs

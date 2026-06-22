@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Search, LayoutGrid, List, Upload, Gamepad2 } from "lucide-react";
@@ -31,6 +31,14 @@ const PLATFORM_COLOR: Record<EmulatorPlatform, string> = {
 };
 
 export default function LibraryPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Načítavam knižnicu…</div>}>
+      <LibraryContent />
+    </Suspense>
+  );
+}
+
+function LibraryContent() {
   const params = useSearchParams();
   const initialPlatform = (params?.get("platform") as EmulatorPlatform | "all" | null) ?? "all";
 

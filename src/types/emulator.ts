@@ -137,6 +137,9 @@ export interface EmulatorAdapter {
   getPerformanceStats(): EmulatorPerformanceStats;
   destroy(): Promise<void>;
 
+  /** Release all currently pressed inputs (keys, mouse buttons, gamepad buttons). */
+  releaseAllInputs?(): void;
+
   subscribe(listener: (event: EmulatorEvent) => void): () => void;
 }
 

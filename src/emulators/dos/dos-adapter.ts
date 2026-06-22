@@ -411,33 +411,46 @@ export class DosAdapter implements EmulatorAdapter {
     // Aplikuj audio config pred štartom
     this.applyAudioConfig();
 
+    // Spustime ci.run() — toto vracia Promise, ktorý sa resolvne pri ukončení emulátora.
+    // Podľa prompt sekcia 13: start() musi skončiť po úspešnom spustení jadra,
+    // nesmie čakať až do ukončenia celej emulačnej slučky.
+    this.runPromise = this.ci.run();
+
+    // Ak ci.run() hneď vyhodí synchronnú chybu, zachyť ju
+    // Inak nechaj bežať na pozadí — error handler dole
+    if (!this.runPromise || typeof this.runPromise.then !== "function") {
+      throw new RetroCloudError(
+        "EMULATOR_INIT_FAILED",
+        "DOS jadro nevrátilo Promise z ci.run()"
+      );
+    }
+
+    // Sleduj runPromise asynchrónne — error alebo ukončenie
+    this.runPromise
+      .then(() => {
+        // Normálne ukončenie
+        if (this._state !== "destroyed") {
+          this.setState("idle");
+        }
+      })
+      .catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[dos-adapter] ci.run() vyhodil chybu:", e);
+        this.emit(
+          makeEvent("error", undefined, {
+            code: "EMULATOR_INIT_FAILED",
+            message: `DOS jadro spadlo: ${msg}`,
+          })
+        );
+        this.setState("error");
+      })
+      .finally(() => {
+        this.runPromise = null;
+      });
+
     // Nastav `running` AŽ keď reálne spustíme ci.run()
     this.setState("running");
     this.emit(makeEvent("started"));
-
-    this.runPromise = this.ci.run();
-    try {
-      await this.runPromise;
-    } catch (e) {
-      // Normálne ci.run() resolves pri normálnom ukončení; chyba znamená pád
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error("[dos-adapter] ci.run() vyhodil chybu:", e);
-      this.emit(makeEvent("error", undefined, {
-        code: "EMULATOR_INIT_FAILED",
-        message: `DOS jadro spadlo: ${msg}`,
-      }));
-      this.setState("error");
-    } finally {
-      this.runPromise = null;
-      // start() nastavil running; po ukončení ci.run() vraciame do idle.
-      // Ak však nastala chyba (catch), state je už error — nemeníme.
-      // Používame `as` pretypovanie — TS inak zužuje typ `this._state`
-      // na základe early-return checku `=== "running"` v úvode start().
-      const currentState = this._state as EmulatorLifecycleState;
-      if (currentState === "running") {
-        this.setState("idle");
-      }
-    }
   }
 
   async pause(): Promise<void> {
@@ -518,9 +531,25 @@ export class DosAdapter implements EmulatorAdapter {
     }
 
     if (event.type === "pointer") {
-      // Pre DOS hry s myšou by sme tu mali volať simulateMouse
-      // — ale to vyžaduje konverziu súradníc na DOS rozlíšenie.
-      // Zatiaľ len zaznamenáme (DOS myš bude implementovaná v dos-touchpad.tsx).
+      // DOS mouse support — per prompt section 12.
+      //
+      // js-dos API (v8.x): ci.simulateMouseMotion(deltaX, deltaY) for relative movement,
+      // ci.simulateMouseButton(button, pressed) for buttons (0=left, 1=middle, 2=right).
+      //
+      // Pointer Lock API gives us relative movement via event.movementX/Y, which the
+      // MouseHandler passes to sendInput({type: "pointer", x: movementX, y: movementY}).
+      // We forward those deltas directly to ci.simulateMouseMotion.
+      try {
+        const ci = this.ci as unknown as {
+          simulateMouseMotion?: (dx: number, dy: number) => void;
+          simulateMouseButton?: (button: number, pressed: boolean) => void;
+        };
+        if (typeof ci.simulateMouseMotion === "function" && event.x !== undefined && event.y !== undefined) {
+          ci.simulateMouseMotion(event.x, event.y);
+        }
+      } catch (e) {
+        console.warn("[dos-adapter] simulateMouseMotion failed:", e);
+      }
       return;
     }
   }
@@ -658,6 +687,34 @@ export class DosAdapter implements EmulatorAdapter {
   }
 
   /**
+   * Release all currently pressed keys / mouse buttons.
+   * Per prompt section 13 — called on destroy, blur, pause, route change.
+   */
+  releaseAllInputs(): void {
+    if (!this.ci) return;
+    try {
+      // Send key-up for common keys (idempotent — js-dos ignores keys not currently down)
+      const releaseKeys = [
+        1, 14, 15, 28, 29, 42, 54, 56, 57,
+        72, 75, 77, 80,
+        ...Array.from({ length: 26 }, (_, i) => 16 + i),
+        ...Array.from({ length: 10 }, (_, i) => 2 + i),
+        ...Array.from({ length: 12 }, (_, i) => 59 + i),
+        87, 88,
+      ];
+      for (const code of releaseKeys) {
+        try {
+          this.ci.simulateKeyEvent?.(code, false);
+        } catch {
+          // Key not currently pressed — ignore
+        }
+      }
+    } catch (e) {
+      console.warn("[dos-adapter] releaseAllInputs failed:", e);
+    }
+  }
+
+  /**
    * Zničí emulátor — kompletný cleanup:
    *  - exit z DOS jadra
    *  - revoke všetkých Blob URLs
@@ -666,6 +723,7 @@ export class DosAdapter implements EmulatorAdapter {
    */
   async destroy(): Promise<void> {
     this.setState("stopping");
+    this.releaseAllInputs();
     await this.cleanupCi();
 
     // Revoke Blob URLs

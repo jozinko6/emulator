@@ -1,0 +1,259 @@
+import { useEffect, useState } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import {
+  ArrowLeft,
+  Play,
+  Heart,
+  Trash2,
+  Pencil,
+  Clock,
+  HardDrive,
+  Calendar,
+  FileText,
+  AlertCircle,
+  Download,
+} from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import type { GameRecord, SaveStateRecord } from "@/types/game";
+import { formatBytes } from "@shell/components/storage-meter";
+
+const PLATFORM_LABEL = { dos: "DOS", ps1: "PlayStation", ps2: "PlayStation 2" };
+const PLATFORM_COLOR = {
+  dos: "text-amber-400",
+  ps1: "text-emerald-400",
+  ps2: "text-fuchsia-400",
+};
+
+export function GameDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [game, setGame] = useState<GameRecord | null>(null);
+  const [saves, setSaves] = useState<SaveStateRecord[]>([]);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState("");
+
+  useEffect(() => {
+    if (!id) return;
+    import("@/lib/storage/repositories")
+      .then(async ({ getGame, getSaveStates }) => {
+        const g = await getGame(id);
+        setGame(g ?? null);
+        setNameValue(g?.name ?? "");
+        const s = await getSaveStates(id);
+        setSaves(s.sort((a, b) => b.updatedAt - a.updatedAt));
+      })
+      .catch((e) => console.error("Failed to load game:", e));
+  }, [id]);
+
+  if (!game) {
+    return (
+      <div className="container mx-auto px-4 py-6 max-w-3xl">
+        <Card className="p-6 text-center">
+          <p className="text-sm text-muted-foreground">Hra sa nenašla.</p>
+          <Link to="/library">
+            <Button variant="outline" className="mt-3">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Späť na knižnicu
+            </Button>
+          </Link>
+        </Card>
+      </div>
+    );
+  }
+
+  const hasSave = saves.length > 0;
+
+  const handleDelete = async () => {
+    const { deleteGame } = await import("@/lib/storage/repositories");
+    const { deleteRecursive } = await import("@/lib/storage/opfs");
+    await deleteGame(game.id);
+    await deleteRecursive(`games/${game.id}`);
+    await deleteRecursive(`saves/${game.id}`);
+    navigate("/library");
+  };
+
+  const toggleFavorite = async () => {
+    const { putGame } = await import("@/lib/storage/repositories");
+    const updated = { ...game, isFavorite: !game.isFavorite, updatedAt: Date.now() };
+    await putGame(updated);
+    setGame(updated);
+  };
+
+  const handleRename = async () => {
+    if (!nameValue.trim()) return;
+    const { putGame } = await import("@/lib/storage/repositories");
+    const updated = { ...game, name: nameValue.trim(), updatedAt: Date.now() };
+    await putGame(updated);
+    setGame(updated);
+    setEditingName(false);
+  };
+
+  return (
+    <div className="container mx-auto px-4 py-6 max-w-4xl space-y-4">
+      <Link to="/library">
+        <Button variant="ghost" size="sm">
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Späť
+        </Button>
+      </Link>
+
+      <Card className="p-6">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="w-24 h-32 rounded-md bg-gradient-to-br from-primary/10 to-fuchsia-500/5 flex items-center justify-center shrink-0">
+            {game.coverUrl ? (
+              <img src={game.coverUrl} alt={game.name} className="w-full h-full object-cover rounded-md" />
+            ) : (
+              <Play className="h-8 w-8 text-primary/30" />
+            )}
+          </div>
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="outline" className={PLATFORM_COLOR[game.platform]}>
+                {PLATFORM_LABEL[game.platform]}
+              </Badge>
+              {game.isFavorite && (
+                <Badge variant="outline" className="text-amber-400 border-amber-500/30">
+                  <Heart className="h-3 w-3 mr-1" /> Obľúbené
+                </Badge>
+              )}
+            </div>
+
+            {editingName ? (
+              <div className="flex gap-2">
+                <Input
+                  value={nameValue}
+                  onChange={(e) => setNameValue(e.target.value)}
+                  className="text-xl font-semibold"
+                />
+                <Button size="sm" onClick={handleRename}>Uložiť</Button>
+                <Button size="sm" variant="outline" onClick={() => setEditingName(false)}>Zrušiť</Button>
+              </div>
+            ) : (
+              <h1 className="text-2xl font-semibold">{game.name}</h1>
+            )}
+
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs text-muted-foreground pt-2">
+              <div className="flex items-center gap-1">
+                <HardDrive className="h-3 w-3" />
+                {formatBytes(game.size)}
+              </div>
+              <div className="flex items-center gap-1">
+                <FileText className="h-3 w-3" />
+                <span className="truncate">{game.mainFile}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                {new Date(game.createdAt).toLocaleDateString("sk")}
+              </div>
+              {game.lastPlayedAt && (
+                <div className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {new Date(game.lastPlayedAt).toLocaleDateString("sk")}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-border">
+          <Link to={`/play/${game.id}`}>
+            <Button>
+              <Play className="h-4 w-4 mr-2" />
+              {hasSave ? "Pokračovať" : "Hrať"}
+            </Button>
+          </Link>
+          {hasSave && (
+            <Link to={`/play/${game.id}?fresh=1`}>
+              <Button variant="outline">
+                <Play className="h-4 w-4 mr-2" />
+                Hrať od začiatku
+              </Button>
+            </Link>
+          )}
+          <Button variant="outline" onClick={toggleFavorite}>
+            <Heart className={`h-4 w-4 mr-2 ${game.isFavorite ? "fill-amber-400 text-amber-400" : ""}`} />
+            {game.isFavorite ? "Odstrániť z obľúbených" : "Obľúbené"}
+          </Button>
+          <Button variant="outline" onClick={() => setEditingName(!editingName)}>
+            <Pencil className="h-4 w-4 mr-2" />
+            Premenovať
+          </Button>
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Odstrániť hru
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Odstrániť hru?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Táto akcia natrvalo odstráni hru, všetky jej súbory z OPFS a všetky save states.
+                  Akciu nemožno vrátiť späť.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Zrušiť</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDelete}>Odstrániť</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </Card>
+
+      {hasSave && (
+        <Card className="p-4">
+          <h2 className="font-display text-sm uppercase tracking-widest text-muted-foreground mb-3">
+            Uložené pozície ({saves.length})
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {saves.map((s) => (
+              <div key={s.id} className="flex items-center gap-3 p-2 rounded border border-border bg-card/50">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium">
+                    {s.slot === 0 ? "Auto-save" : s.slot === 1 ? "Manuálne" : "Záloha"}
+                    {s.isAutoSave && <span className="ml-2 text-[10px] text-primary">Auto</span>}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {new Date(s.updatedAt).toLocaleString("sk")} · {formatBytes(s.fileSize)}
+                  </p>
+                </div>
+                <Link to={`/play/${game.id}`}>
+                  <Button size="sm" variant="outline">
+                    <Download className="h-3 w-3 mr-1" />
+                    Načítať
+                  </Button>
+                </Link>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      <Card className="p-3 bg-card/30">
+        <div className="flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+          <p className="text-[11px] text-muted-foreground">
+            Aplikácia neposkytuje hry ani BIOS. Používateľ zodpovedá za vlastné súbory.
+          </p>
+        </div>
+      </Card>
+    </div>
+  );
+}

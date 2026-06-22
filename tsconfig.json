@@ -45,6 +45,8 @@
     "node_modules",
     "examples",
     "skills",
-    "tests/e2e"
+    "tests/e2e",
+    "android-shell",
+    "android"
   ]
 }

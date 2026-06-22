@@ -18,7 +18,7 @@ import type {
 import type { StoredSaveState } from "@/types/emulator";
 
 const DB_NAME = "retrocloud";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 interface RetroCloudDB extends DBSchema {
   games: { key: string; value: GameRecord; indexes: { platform: string; updatedAt: number; lastPlayedAt: number } };
@@ -40,32 +40,71 @@ export function getDB(): Promise<IDBPDatabase<RetroCloudDB>> {
   }
   if (!dbPromise) {
     dbPromise = openDB<RetroCloudDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        const games = db.createObjectStore("games", { keyPath: "id" });
-        games.createIndex("platform", "platform");
-        games.createIndex("updatedAt", "updatedAt");
-        games.createIndex("lastPlayedAt", "lastPlayedAt");
+      upgrade(db, oldVersion, _newVersion, transaction) {
+        // v1 → v2: initial schema
+        if (oldVersion < 1) {
+          const games = db.createObjectStore("games", { keyPath: "id" });
+          games.createIndex("platform", "platform");
+          games.createIndex("updatedAt", "updatedAt");
+          games.createIndex("lastPlayedAt", "lastPlayedAt");
 
-        const gameFiles = db.createObjectStore("gameFiles", { keyPath: "id" });
-        gameFiles.createIndex("gameId", "gameId");
+          const gameFiles = db.createObjectStore("gameFiles", { keyPath: "id" });
+          gameFiles.createIndex("gameId", "gameId");
 
-        const saves = db.createObjectStore("saves", { keyPath: "id" });
-        saves.createIndex("gameId", "gameId");
-        saves.createIndex("slot", "slot");
+          const saves = db.createObjectStore("saves", { keyPath: "id" });
+          saves.createIndex("gameId", "gameId");
+          saves.createIndex("slot", "slot");
 
-        const bios = db.createObjectStore("bios", { keyPath: "id" });
-        bios.createIndex("platform", "platform");
+          const bios = db.createObjectStore("bios", { keyPath: "id" });
+          bios.createIndex("platform", "platform");
 
-        const controllers = db.createObjectStore("controllers", { keyPath: "id" });
-        controllers.createIndex("platform", "platform");
+          const controllers = db.createObjectStore("controllers", { keyPath: "id" });
+          controllers.createIndex("platform", "platform");
 
-        db.createObjectStore("settings", { keyPath: "platform" });
-        db.createObjectStore("importJobs", { keyPath: "id" });
+          db.createObjectStore("settings", { keyPath: "platform" });
+          db.createObjectStore("importJobs", { keyPath: "id" });
 
-        const playSessions = db.createObjectStore("playSessions", { keyPath: "id" });
-        playSessions.createIndex("gameId", "gameId");
+          const playSessions = db.createObjectStore("playSessions", { keyPath: "id" });
+          playSessions.createIndex("gameId", "gameId");
 
-        db.createObjectStore("preferences", { keyPath: "key" });
+          db.createObjectStore("preferences", { keyPath: "key" });
+        }
+
+        // v1 → v2: deduplicate save state records
+        // Per prompt section 14 — deterministické ID `${gameId}:${slot}`
+        if (oldVersion < 2) {
+          (async () => {
+            try {
+              const saves = transaction.objectStore("saves");
+              const allSaves = await saves.getAll();
+              // Group by (gameId, slot)
+              const groups = new Map<string, SaveStateRecord[]>();
+              for (const save of allSaves) {
+                const key = `${save.gameId}:${save.slot}`;
+                const arr = groups.get(key) ?? [];
+                arr.push(save as SaveStateRecord);
+                groups.set(key, arr);
+              }
+              for (const [key, group] of groups) {
+                if (group.length === 0) continue;
+                // Sort by updatedAt desc
+                group.sort((a, b) => b.updatedAt - a.updatedAt);
+                const newest = group[0];
+                if (newest.id === key) continue; // already deterministic
+                // Delete duplicates (keep newest)
+                for (let i = 1; i < group.length; i++) {
+                  await saves.delete(group[i].id);
+                }
+                // Update newest with deterministic ID
+                const updated = { ...newest, id: key };
+                await saves.delete(newest.id);
+                await saves.put(updated);
+              }
+            } catch (e) {
+              console.warn("v2 save state migration failed:", e);
+            }
+          })();
+        }
       },
     });
   }

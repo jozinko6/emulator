@@ -3,7 +3,11 @@ import type { CapacitorConfig } from "@capacitor/cli";
 /**
  * Capacitor configuration for "Jaňo še chce bavkac" Android app.
  *
- * Per prompt section 6 — Android app via Capacitor.
+ * Architecture:
+ *   - Next.js zostáva pre web (deploy na Vercel alebo iný hosting)
+ *   - Pre Android sa používa samostatný Vite + React shell (android-shell/)
+ *   - webDir smeruje na android-shell/dist/ — tento priečinok vytvorí
+ *     `npm run android:web` (alias pre `node scripts/build-android-shell.mjs`)
  *
  * Application ID: sk.jano.bavkac
  * Min Android: 8 (API 26)
@@ -16,24 +20,25 @@ import type { CapacitorConfig } from "@capacitor/cli";
  *   - NativeFilePickerPlugin
  *
  * Local assets (offline-ready):
- *   - public/emulator-assets/* are bundled into the APK via Capacitor
- *     (webDir = "static" after `next build`)
- *   - The Android app does NOT fetch assets from a remote server.
+ *   - android-shell/dist/ obsahuje UI, JS bundle, CSS
+ *   - public/ sa skopíruje do APK ako asset directory
+ *   - Emulačné jadrá sa pridávajú cez `npm run setup:cores`
  */
 const config: CapacitorConfig = {
   appId: "sk.jano.bavkac",
   appName: "Jaňo še chce bavkac",
-  webDir: "out",
+  webDir: "android-shell/dist",
   backgroundColor: "#0a0a14",
   android: {
-    buildOptions: {
-      keystorePath: undefined,
-      keystoreAlias: undefined,
-    },
     allowMixedContent: false,
-    // Required for cross-origin isolation headers (SharedArrayBuffer for PS1 WASM threading)
-    captureInput: true,
     webContentsDebuggingEnabled: false,
+    // Required for cross-origin isolation (SharedArrayBuffer for PS1 WASM)
+    captureInput: true,
+  },
+  server: {
+    androidScheme: "https",
+    // Force local assets only — no remote loading
+    cleartext: false,
   },
   plugins: {
     SplashScreen: {
@@ -43,15 +48,6 @@ const config: CapacitorConfig = {
       showSpinner: false,
       androidSplashResourceName: "splash",
     },
-    NativeFullscreen: {},
-    NativeGamepad: {},
-    NativeStorage: {},
-    NativeFilePicker: {},
-  },
-  server: {
-    androidScheme: "https",
-    // Force local assets only — no remote loading
-    cleartext: false,
   },
 };
 
