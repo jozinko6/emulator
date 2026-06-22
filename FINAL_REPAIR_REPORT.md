@@ -83,6 +83,15 @@ PR: `https://github.com/jozinko6/emulator/pull/1`
 - `node scripts/run-gradle.mjs --version`: Gradle 8.7.
 - `node scripts/run-gradle.mjs clean assembleDebug --no-daemon`: passed with JDK 21.
 
+## GitHub Actions after push
+
+- New pushed commit initially checked: `726e13b12ee5431c681ceb3f7e5b61317fd04fda`.
+- New run: `https://github.com/jozinko6/emulator/actions/runs/27986711677`.
+- Run status: `failure`.
+- GitHub annotation: `The job was not started because your account is locked due to a billing issue.`
+- Duration was about 4 seconds and no APK artifact was produced because the web job never started.
+- This is an external GitHub account/billing block, not a code, lockfile, test, Gradle, or Android build failure.
+
 ## APK
 
 - Local APK: `C:\Users\Test_Admin\Desktop\Pokusy\Jano\android\app\build\outputs\apk\debug\app-debug.apk`
