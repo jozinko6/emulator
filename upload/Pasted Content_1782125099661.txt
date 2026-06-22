@@ -1,0 +1,1710 @@
+Si senior full-stack vývojár, špecialista na WebAssembly, emuláciu v prehliadači, PWA aplikácie, lokálne úložisko a spracovanie veľkých súborov.
+
+Vytvor od základu produkčne použiteľnú webovú aplikáciu s pracovným názvom:
+
+RETROCLOUD
+
+Ide o lokálne orientovaný online emulátor a správcu vlastných záložných kópií hier pre:
+
+1. DOS
+2. PlayStation 1
+3. PlayStation 2 – experimentálny režim
+
+Aplikácia musí fungovať na:
+
+- Windows PC
+- Linux PC
+- macOS
+- Android telefónoch a tabletoch
+- iPhone a iPad v rámci reálnych obmedzení Safari
+- moderných desktopových a mobilných prehliadačoch
+
+Používateľ musí vedieť načítať vlastné hry:
+
+- zo svojho zariadenia,
+- zo ZIP archívu,
+- z RAR archívu,
+- z 7z archívu, ak použitá WASM knižnica poskytne stabilnú podporu,
+- ako samostatný ISO, BIN, CUE, CHD, CSO, PBP, ELF alebo JSDOS súbor,
+- cez Google Drive Picker,
+- cez verejný Google Drive odkaz.
+
+Herné súbory musia štandardne zostať iba v zariadení používateľa. ROM, ISO, BIN, CHD, BIOS ani celé archívy sa nesmú automaticky odosielať na server.
+
+Projekt vytvor ako reálnu aplikáciu, nie ako dizajnovú ukážku alebo statický prototyp.
+
+==================================================
+1. SPÔSOB PRÁCE
+==================================================
+
+Pracuj autonómne a dokonči projekt v logických etapách.
+
+Existujúci kód považuj za nahraditeľný. Neopravuj starú architektúru iba preto, že už existuje. Projekt navrhni od jadra nanovo a existujúce súbory ponechaj iba vtedy, keď zapadajú do novej architektúry.
+
+Najskôr:
+
+1. skontroluj obsah repozitára,
+2. vytvor súbor `plan.md`,
+3. vytvor cieľovú architektúru,
+4. rozdeľ implementáciu na etapy,
+5. následne okamžite pokračuj implementáciou.
+
+Nezastavuj sa po vytvorení plánu.
+
+Nepýtaj sa po každej etape na pokračovanie.
+
+Ak sa objaví nejasnosť, zvoľ technicky najrozumnejšie riešenie, zdokumentuj rozhodnutie a pokračuj.
+
+Pred integráciou emulačných jadier, WebAssembly balíkov alebo externých API over aktuálnu oficiálnu dokumentáciu a licenčné podmienky.
+
+Nikdy nevytváraj falošnú implementáciu, ktorá iba zobrazí obrazovku a nastaví stav na „running“.
+
+Funkcia sa môže označiť ako funkčná iba vtedy, keď skutočne vykonáva požadovanú činnosť.
+
+Ak PS2 jadro nebude možné stabilne integrovať:
+
+- implementuj správnu modulárnu architektúru,
+- PS2 skry za feature flag,
+- označ ho ako nedostupné alebo experimentálne,
+- nevytváraj placeholder, ktorý predstiera emuláciu.
+
+Po každej etape spusti:
+
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+
+Všetky chyby oprav pred pokračovaním.
+
+==================================================
+2. HLAVNÝ POUŽÍVATEĽSKÝ SCENÁR
+==================================================
+
+Používateľ:
+
+1. otvorí aplikáciu,
+2. vyberie „Importovať hru“,
+3. vyberie lokálny súbor, viacero súborov, ZIP, RAR alebo Google Drive,
+4. aplikácia skontroluje súbor,
+5. bezpečne ho rozbalí,
+6. rozpozná hernú platformu,
+7. identifikuje hlavný súbor,
+8. uloží herné súbory lokálne,
+9. vytvorí položku v knižnici,
+10. používateľ spustí hru,
+11. hrá pomocou klávesnice, myši, fyzického gamepadu alebo dotykového ovládača,
+12. uloží hernú pozíciu,
+13. neskôr pokračuje v hraní.
+
+Aplikácia musí fungovať aj bez používateľského účtu.
+
+Používateľský účet je voliteľný a slúži iba na:
+
+- synchronizáciu metadát,
+- synchronizáciu nastavení,
+- synchronizáciu save states,
+- synchronizáciu profilov ovládania.
+
+Celé hry sa cez účet nesynchronizujú.
+
+==================================================
+3. TECHNOLOGICKÝ STACK
+==================================================
+
+Použi:
+
+- Next.js 16 alebo aktuálnu stabilnú kompatibilnú verziu
+- React
+- TypeScript v strict režime
+- App Router
+- Tailwind CSS
+- shadcn/ui alebo vlastné prístupné komponenty
+- Zustand na klientsky stav
+- IndexedDB na metadata
+- OPFS – Origin Private File System na veľké herné súbory
+- Web Workers na rozbaľovanie, detekciu a náročné operácie
+- WebAssembly
+- Web Gamepad API
+- Web Audio API
+- Fullscreen API
+- Storage API
+- Supabase iba ako voliteľný cloudový backend
+- Vercel na nasadenie webovej aplikácie
+- Vitest
+- React Testing Library
+- Playwright
+- GitHub Actions
+
+Použi jeden package manager konzistentne. Preferuj npm pre maximálnu kompatibilitu.
+
+Nevytváraj Prisma SQLite databázu, ak sa nebude reálne používať.
+
+Ak sa použije Supabase, komunikuj s ním priamo cez oficiálny Supabase klient a SQL migrácie.
+
+==================================================
+4. ARCHITEKTÚRA APLIKÁCIE
+==================================================
+
+Navrhni čistú modulárnu architektúru.
+
+Odporúčaná štruktúra:
+
+src/
+  app/
+    page.tsx
+    library/
+    import/
+    game/
+    play/
+    saves/
+    settings/
+    profile/
+    diagnostics/
+    legal/
+    privacy/
+    terms/
+    api/
+
+  components/
+    layout/
+    library/
+    import/
+    emulator/
+    controls/
+    storage/
+    auth/
+    pwa/
+    ui/
+
+  emulators/
+    core/
+      emulator-adapter.ts
+      emulator-factory.ts
+      emulator-events.ts
+      emulator-input.ts
+    dos/
+    ps1/
+    ps2/
+
+  lib/
+    archive/
+    detection/
+    storage/
+    google-drive/
+    security/
+    hashing/
+    diagnostics/
+    supabase/
+    pwa/
+
+  workers/
+    archive.worker.ts
+    detection.worker.ts
+    hashing.worker.ts
+    file-copy.worker.ts
+
+  stores/
+    navigation-store.ts
+    library-store.ts
+    import-store.ts
+    emulator-store.ts
+    settings-store.ts
+    controller-store.ts
+    auth-store.ts
+
+  types/
+
+public/
+  emulator-assets/
+  icons/
+  offline/
+  demo/
+
+supabase/
+  migrations/
+
+tests/
+  unit/
+  integration/
+  e2e/
+
+==================================================
+5. JEDNOTNÁ EMULAČNÁ VRSTVA
+==================================================
+
+Vytvor spoločné rozhranie pre všetky emulátory.
+
+Použi koncept podobný tomuto:
+
+export type EmulatorPlatform = "dos" | "ps1" | "ps2";
+
+export type EmulatorLifecycleState =
+  | "idle"
+  | "initializing"
+  | "loading"
+  | "ready"
+  | "running"
+  | "paused"
+  | "stopping"
+  | "error"
+  | "destroyed";
+
+export interface EmulatorInputEvent {
+  type:
+    | "button-down"
+    | "button-up"
+    | "axis"
+    | "key-down"
+    | "key-up"
+    | "pointer";
+  control: string;
+  value?: number;
+  x?: number;
+  y?: number;
+}
+
+export interface EmulatorAdapter {
+  readonly platform: EmulatorPlatform;
+  readonly state: EmulatorLifecycleState;
+
+  initialize(container: HTMLElement): Promise<void>;
+  loadGame(game: ImportedGame): Promise<void>;
+  start(): Promise<void>;
+  pause(): Promise<void>;
+  resume(): Promise<void>;
+  reset(): Promise<void>;
+
+  sendInput(event: EmulatorInputEvent): void;
+
+  saveState(slot: number): Promise<StoredSaveState>;
+  loadState(slot: number): Promise<void>;
+  deleteState(slot: number): Promise<void>;
+
+  setVolume(volume: number): void;
+  setMuted(muted: boolean): void;
+
+  enterFullscreen(): Promise<void>;
+  exitFullscreen(): Promise<void>;
+
+  getPerformanceStats(): EmulatorPerformanceStats;
+  destroy(): Promise<void>;
+
+  subscribe(
+    listener: (event: EmulatorEvent) => void
+  ): () => void;
+}
+
+UI nesmie komunikovať priamo s js-dos, EmulatorJS alebo Play!.js.
+
+Všetky emulátory musia byť ovládané cez adapter.
+
+Adapter musí emitovať reálne udalosti:
+
+- initialized
+- game-loading
+- game-ready
+- started
+- paused
+- resumed
+- state-saved
+- state-loaded
+- error
+- destroyed
+- performance-update
+
+Stav „running“ nastav až po potvrdení, že emulačné jadro skutočne beží.
+
+==================================================
+6. DOS EMULÁCIA
+==================================================
+
+Použi aktuálnu stabilnú verziu js-dos alebo kompatibilné DOSBox WebAssembly jadro.
+
+DOS implementácia musí byť reálne funkčná.
+
+Podpor:
+
+- `.jsdos`
+- ZIP alebo RAR obsahujúci DOS hru
+- `.exe`
+- `.com`
+- `.bat`
+- vlastný `dosbox.conf`
+
+Automaticky hľadaj štartovací súbor.
+
+Priorita:
+
+1. START.BAT
+2. PLAY.BAT
+3. RUN.BAT
+4. GAME.BAT
+5. GAME.EXE
+6. START.EXE
+7. PLAY.EXE
+8. RUN.EXE
+9. iný vhodný BAT, EXE alebo COM
+
+Nepreferuj:
+
+- INSTALL.EXE
+- SETUP.EXE
+- UNINSTALL.EXE
+- CONFIG.EXE
+- SOUND.EXE
+- SETUP.BAT
+
+Ak existuje viac možných štartovacích súborov, zobraz používateľovi dialóg.
+
+Implementuj:
+
+- reálne spustenie hry,
+- klávesnicu,
+- myš,
+- virtuálny touchpad,
+- ľavé a pravé tlačidlo myši,
+- gamepad,
+- fullscreen,
+- pause,
+- resume,
+- reset,
+- ukončenie,
+- hlasitosť,
+- mute,
+- save states,
+- auto-save pri ukončení, ak ho jadro podporuje.
+
+Použi oficiálne API js-dos. Neodhaduj názvy metód.
+
+Ak treba vytvoriť JSDOS balík, vytvor ho v korektnom formáte podľa dokumentácie.
+
+Nevytváraj ZIP balík synchronne na hlavnom UI vlákne.
+
+==================================================
+7. PLAYSTATION 1 EMULÁCIA
+==================================================
+
+Použi EmulatorJS s jadrom PCSX-ReARMed alebo inú stabilnú browserovú PS1 implementáciu.
+
+EmulatorJS assety a jadro hostuj lokálne v aplikácii.
+
+Nespoliehaj sa v produkcii na externé CDN.
+
+Podpor:
+
+- BIN + CUE
+- viacero BIN trackov
+- CHD
+- PBP
+- ISO s upozornením na obmedzenia audio trackov
+- ZIP alebo RAR obsahujúci PS1 hru
+- viacdiskové hry
+
+Používateľ musí vedieť vybrať viacero súborov naraz:
+
+- game.cue
+- game.bin
+- ďalšie BIN tracky
+
+Pri BIN + CUE:
+
+- zachovaj relatívne cesty,
+- validuj odkazy uvedené v CUE,
+- over, že všetky požadované BIN súbory existujú,
+- rešpektuj veľkosť písmen tam, kde je to potrebné,
+- vytvor korektné virtuálne súborové prostredie alebo balík pre emulátor.
+
+BIOS:
+
+- používateľ si nahrá vlastný BIOS,
+- BIOS sa uloží iba lokálne,
+- aplikácia BIOS neposkytuje,
+- BIOS sa neposiela na server,
+- validuj veľkosť a hash,
+- rozpoznaj región, ak je to možné,
+- používateľ musí vedieť BIOS odstrániť.
+
+Implementuj:
+
+- reálne spustenie PS1 hry,
+- D-pad,
+- Triangle,
+- Circle,
+- Cross,
+- Square,
+- L1,
+- L2,
+- R1,
+- R2,
+- Start,
+- Select,
+- analógový režim,
+- fyzický gamepad,
+- dotykový gamepad,
+- memory card,
+- save states,
+- auto-save,
+- pause,
+- resume,
+- reset,
+- fullscreen,
+- hlasitosť,
+- mute,
+- pomer strán,
+- prepnutie disku pri viacdiskovej hre.
+
+Pri destroy:
+
+- ukonči emulačné slučky,
+- odstráň listenery,
+- uvoľni AudioContext,
+- zruš Blob URL cez URL.revokeObjectURL,
+- odstráň dynamicky vložené elementy,
+- vyčisti globálnu konfiguráciu EmulatorJS.
+
+==================================================
+8. PLAYSTATION 2 EMULÁCIA
+==================================================
+
+PS2 implementuj cez aktuálny browserový build Play!.js, ak je reálne a licenčne možné ho integrovať.
+
+PS2 musí byť označené:
+
+EXPERIMENTÁLNE
+
+Použi feature flag:
+
+NEXT_PUBLIC_ENABLE_PS2=false
+
+Predvolená hodnota má byť `false`, kým nebude Play!.js reálne integrovaný a otestovaný.
+
+PS2 nesmie byť označené ako funkčné iba preto, že sa zobrazí canvas.
+
+Reálne PS2 minimum:
+
+- inicializácia Play!.js WASM jadra,
+- načítanie podporovaného obrazu,
+- vykresľovanie hry,
+- zvuk,
+- vstupy,
+- pause,
+- resume,
+- reset,
+- správne ukončenie.
+
+Podporované formáty zobraz iba po reálnom overení.
+
+Možné formáty:
+
+- ISO
+- CHD
+- CSO
+- ELF
+
+Ak jadro daný formát nepodporuje, nezobrazuj ho ako podporovaný.
+
+Pred spustením zobraz:
+
+- stav WebAssembly,
+- WebGL2,
+- dostupnú pamäť, ak ju možno odhadnúť,
+- počet CPU jadier,
+- výkonový profil,
+- upozornenie na experimentálnu kompatibilitu.
+
+Pridaj výkonové profily:
+
+- výkon
+- vyvážené
+- kvalita
+
+Ak Play!.js nemožno integrovať, PS2 stránka musí korektne uviesť:
+
+„PS2 emulačné jadro zatiaľ nie je v tomto zostavení dostupné.“
+
+Nevytváraj falošné tlačidlá save state alebo reset.
+
+==================================================
+9. IMPORT SÚBOROV
+==================================================
+
+Import musí podporovať:
+
+- drag and drop,
+- klasický file picker,
+- výber viacerých súborov,
+- File System Access API, ak je dostupné,
+- fallback pre Safari a nepodporované prehliadače.
+
+Podporované formáty:
+
+- ZIP
+- RAR
+- 7z, ak je stabilné
+- JSDOS
+- EXE
+- COM
+- BAT
+- ISO
+- BIN
+- CUE
+- CHD
+- CSO
+- PBP
+- ELF
+
+Importný stavový automat:
+
+- idle
+- selecting
+- reading
+- validating
+- extracting
+- detecting
+- awaiting-user-selection
+- storing
+- ready
+- error
+- cancelled
+
+Zobraz:
+
+- názov súboru,
+- aktuálny krok,
+- percentá,
+- počet súborov,
+- spracované bajty,
+- celkovú veľkosť,
+- rozbalenú veľkosť,
+- upozornenia,
+- možnosť zrušenia.
+
+Import musí podporovať AbortController alebo ekvivalentný mechanizmus.
+
+==================================================
+10. ZIP, RAR A 7Z
+==================================================
+
+ZIP:
+
+- použi fflate alebo inú vhodnú knižnicu,
+- nepoužívaj `unzipSync()` na hlavnom vlákne,
+- spracovanie vykonaj vo Web Workeri,
+- používaj streaming alebo postupné spracovanie, kde je to možné.
+
+RAR a 7z:
+
+- použi libarchive.js alebo inú stabilnú WebAssembly knižnicu,
+- WebAssembly assety hostuj lokálne,
+- rozbaľovanie vykonaj vo Web Workeri,
+- over podporu RAR4 a RAR5,
+- ošetri archívy chránené heslom,
+- ak formát nie je podporovaný, zobraz presnú chybu.
+
+Pred úplným rozbalením skontroluj:
+
+- počet súborov,
+- deklarovanú veľkosť,
+- kompresný pomer,
+- hĺbku priečinkov,
+- vnorené archívy,
+- dostupné miesto.
+
+Nikdy nerozbaľ celý potenciálne nebezpečný archív ešte pred bezpečnostnou validáciou.
+
+==================================================
+11. BEZPEČNOSŤ ARCHÍVOV
+==================================================
+
+Implementuj ochranu pred:
+
+- ZIP bombou,
+- RAR bombou,
+- path traversal,
+- `../`,
+- `..\`,
+- absolútnymi cestami,
+- Windows drive cestami ako `C:\`,
+- UNC cestami,
+- nulovými znakmi,
+- extrémne dlhými názvami,
+- príliš veľkým počtom súborov,
+- extrémnou adresárovou hĺbkou,
+- vnorenými archívmi,
+- kolíziami názvov,
+- poškodenými archívmi.
+
+Odporúčané limity:
+
+maxFiles: 10000
+maxPathLength: 300
+maxDirectoryDepth: 20
+maxNestedArchiveDepth: 1
+maxCompressionRatio: 1000
+
+Predvolené limity:
+
+DOS: 2 GB
+PS1: 4 GB
+PS2: 10 GB
+
+Limity musia byť konfigurovateľné.
+
+Nebezpečné cesty iba potichu neopravuj. Archív odmietni alebo vyžiadaj jasné rozhodnutie používateľa.
+
+==================================================
+12. VEĽKÉ SÚBORY A OPFS
+==================================================
+
+Nečítaj niekoľkogigabajtové súbory pomocou:
+
+file.arrayBuffer()
+
+Nevytváraj pre celé ISO alebo CHD jeden obrovský ArrayBuffer.
+
+Veľké súbory:
+
+- zapisuj do OPFS po častiach,
+- používaj streamy,
+- zobrazuj priebeh,
+- umožni zrušenie,
+- kontroluj dostupné miesto počas zápisu.
+
+Použi:
+
+navigator.storage.estimate()
+navigator.storage.persist()
+
+Pred importom zobraz:
+
+- veľkosť súboru,
+- dostupné miesto,
+- odhad potrebného miesta.
+
+Ak úložisko nestačí, import nezačni.
+
+Vytvor bezpečné OPFS utility:
+
+- normalizePath
+- ensureDirectory
+- writeStream
+- readSlice
+- deleteRecursive
+- calculateDirectorySize
+- listDirectory
+- cleanupPartialImport
+
+Pri neúspešnom importe vykonaj rollback všetkých čiastočne uložených súborov.
+
+==================================================
+13. LOKÁLNY DÁTOVÝ MODEL
+==================================================
+
+IndexedDB používaj iba na metadata a menšie dáta.
+
+Vytvor minimálne tieto entity:
+
+GameRecord
+GameFileRecord
+SaveStateRecord
+BiosRecord
+ControllerProfileRecord
+EmulatorSettingsRecord
+ImportJobRecord
+PlaySessionRecord
+UserPreferenceRecord
+
+GameRecord:
+
+- id
+- name
+- platform
+- sourceType
+- sourceReference
+- mainFile
+- coverUrl
+- size
+- createdAt
+- updatedAt
+- lastPlayedAt
+- totalPlayTimeSeconds
+- isFavorite
+- compatibilityStatus
+- emulatorVersion
+- fileFingerprint
+
+GameFileRecord:
+
+- id
+- gameId
+- relativePath
+- opfsPath
+- fileName
+- extension
+- size
+- hash
+- mimeType
+
+SaveStateRecord:
+
+- id
+- gameId
+- slot
+- createdAt
+- updatedAt
+- fileSize
+- screenshotPath
+- note
+- isAutoSave
+- emulatorCore
+- emulatorVersion
+- gameFingerprint
+- opfsPath
+
+BIOS:
+
+- platform
+- fileName
+- size
+- hash
+- region
+- savedAt
+- data alebo OPFS path
+
+Zabezpeč migrácie IndexedDB verzií.
+
+==================================================
+14. DETEKCIA PLATFORMY
+==================================================
+
+Vytvor modul, ktorý nehodnotí platformu iba podľa prípony.
+
+Použi:
+
+- príponu,
+- názov,
+- veľkosť,
+- hlavičku súboru,
+- obsah CUE,
+- štruktúru ISO,
+- metadata CHD, ak sú dostupné,
+- prítomnosť systémových súborov.
+
+Výsledok:
+
+interface DetectionResult {
+  platform: EmulatorPlatform | null;
+  confidence: number;
+  reasons: string[];
+  requiresUserSelection: boolean;
+  possiblePlatforms: EmulatorPlatform[];
+}
+
+Príklady:
+
+- JSDOS → DOS
+- CUE + BIN → PS1
+- PBP → PS1
+- ELF → PS2
+- ISO → analyzovať obsah
+- CHD → analyzovať metadata
+- EXE/BAT/COM → DOS iba v príslušnom kontexte
+
+Pri nejasnom výsledku zobraz manuálny výber.
+
+Pre ISO detekciu hľadaj systémové indikátory PS1 alebo PS2 namiesto rozhodovania iba podľa veľkosti.
+
+==================================================
+15. KNIŽNICA HIER
+==================================================
+
+Domovská stránka:
+
+- Pokračovať v hraní
+- Nedávno hrané
+- Obľúbené
+- DOS
+- PlayStation
+- PlayStation 2
+- Rýchly import
+- Stav lokálneho úložiska
+
+Knižnica:
+
+- grid a list režim,
+- vyhľadávanie,
+- filtrovanie podľa platformy,
+- triedenie podľa názvu,
+- dátumu pridania,
+- posledného hrania,
+- veľkosti,
+- obľúbenosti.
+
+Detail hry:
+
+- názov,
+- obal,
+- platforma,
+- veľkosť,
+- hlavný súbor,
+- zdroj,
+- dátum importu,
+- posledné hranie,
+- celkový čas,
+- kompatibilita,
+- uložené pozície,
+- nastavenie emulátora,
+- nastavenie ovládania.
+
+Akcie:
+
+- Hrať
+- Pokračovať
+- Obľúbené
+- Premenovať
+- Zmeniť obal
+- Nastavenia
+- Export save states
+- Odstrániť hru
+- Odstrániť iba save states
+
+Všetky zmeny okamžite persistuj do IndexedDB.
+
+==================================================
+16. HERNÁ OBRAZOVKA
+==================================================
+
+Herná obrazovka musí byť minimalistická.
+
+Obsahuje:
+
+- emulačný canvas,
+- loading overlay,
+- chybový overlay,
+- horný panel,
+- spodný panel,
+- fullscreen,
+- pauzu,
+- reset,
+- save state,
+- load state,
+- hlasitosť,
+- mute,
+- ovládanie,
+- ukončenie hry.
+
+Panely sa počas hrania automaticky skryjú.
+
+Pri ukončení:
+
+- vykonaj auto-save, ak je podporovaný,
+- zapíš čas hrania,
+- zavolaj `adapter.destroy()`,
+- odstráň listenery,
+- zastav timery,
+- zastav requestAnimationFrame,
+- ukonči AudioContext,
+- uvoľni Blob URL,
+- vyčisti canvas.
+
+Cleanup musí prebehnúť aj pri:
+
+- zmene route,
+- zatvorení komponentu,
+- chybe emulátora,
+- opätovnom spustení inej hry.
+
+==================================================
+17. FYZICKÝ GAMEPAD
+==================================================
+
+Použi Gamepad API.
+
+Implementuj:
+
+- gamepadconnected,
+- gamepaddisconnected,
+- polling cez requestAnimationFrame,
+- polling iba počas aktívnej hry,
+- tlačidlá,
+- osi,
+- deadzone,
+- citlivosť,
+- kalibráciu,
+- vibrácie, ak sú dostupné,
+- vlastné mapovanie,
+- profily ovládačov,
+- profil pre konkrétnu hru.
+
+Podpor:
+
+- Xbox ovládače
+- DualShock
+- DualSense
+- generické USB ovládače
+- Bluetooth ovládače
+
+Input neposielaj priamo z React komponentu do konkrétneho emulátora. Použi spoločný EmulatorInputEvent.
+
+==================================================
+18. DOTYKOVÉ OVLÁDANIE
+==================================================
+
+Vytvor samostatný VirtualGamepad.
+
+Pre PS1 a PS2:
+
+- D-pad
+- ľavý analóg
+- pravý analóg
+- Triangle
+- Circle
+- Cross
+- Square
+- L1
+- L2
+- L3
+- R1
+- R2
+- R3
+- Start
+- Select
+
+Pre DOS:
+
+- virtuálna klávesnica,
+- kurzorové šípky,
+- Escape,
+- Enter,
+- Space,
+- Ctrl,
+- Alt,
+- Shift,
+- funkčné klávesy,
+- touchpad,
+- ľavý klik,
+- pravý klik.
+
+Použi Pointer Events.
+
+Implementuj:
+
+- multitouch,
+- pointer capture,
+- pointercancel,
+- release pri strate focusu,
+- zabránenie scrollovaniu počas hrania,
+- zabránenie zoomu v hernej vrstve,
+- haptickú odozvu,
+- nastaviteľnú veľkosť,
+- nastaviteľnú priehľadnosť,
+- presúvanie prvkov,
+- vlastné rozloženie,
+- uloženie konfigurácie.
+
+Tlačidlá musia posielať reálne vstupy adaptéru.
+
+==================================================
+19. SAVE STATES
+==================================================
+
+Každá hra musí mať:
+
+- Auto Save
+- Slot 1
+- Slot 2
+- Slot 3
+- Slot 4
+- Slot 5
+
+Každý save state obsahuje:
+
+- dátum,
+- čas,
+- screenshot,
+- veľkosť,
+- poznámku,
+- jadro emulátora,
+- verziu jadra,
+- fingerprint hry.
+
+Používateľ musí vedieť:
+
+- uložiť,
+- načítať,
+- prepísať,
+- odstrániť,
+- exportovať,
+- importovať.
+
+Neumožni načítať save state z inej hry.
+
+Pri zmene verzie emulačného jadra upozorni na možnú nekompatibilitu.
+
+==================================================
+20. GOOGLE DRIVE
+==================================================
+
+Implementuj dva režimy.
+
+A. Google Drive Picker
+
+Použi:
+
+- Google Identity Services
+- Google Picker API
+- Google Drive API
+
+Použi najmenší potrebný scope, ideálne:
+
+https://www.googleapis.com/auth/drive.file
+
+Aplikácia nesmie automaticky prehľadávať celý Drive.
+
+Používateľ musí vybrať konkrétny súbor.
+
+Zachovaj:
+
+- názov,
+- MIME typ,
+- veľkosť,
+- file ID,
+- pôvodnú príponu.
+
+B. Verejný Google Drive odkaz
+
+Podpor:
+
+- /file/d/FILE_ID/view
+- /open?id=FILE_ID
+- /uc?id=FILE_ID
+- export=download&id=FILE_ID
+
+Parser musí:
+
+- validovať URL,
+- overiť doménu,
+- bezpečne extrahovať ID,
+- odmietnuť neplatný vstup.
+
+Pred stiahnutím zisti metadata, ak sú dostupné.
+
+Veľké súbory:
+
+- neposielaj cez Vercel API,
+- neukladaj celé do RAM,
+- streamuj priamo do OPFS, ak to CORS dovolí.
+
+Ak priame stiahnutie blokuje CORS alebo Google confirmation stránka:
+
+- nezobraz falošnú chybu,
+- ponúkni Google Picker,
+- prípadne vysvetli, že používateľ musí súbor stiahnuť manuálne.
+
+Environment variables:
+
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=
+NEXT_PUBLIC_GOOGLE_API_KEY=
+NEXT_PUBLIC_GOOGLE_APP_ID=
+
+OAuth token neukladaj do localStorage.
+
+==================================================
+21. SUPABASE A ÚČTY
+==================================================
+
+Aplikácia musí fungovať bez Supabase.
+
+Supabase integrácia má byť voliteľná a aktivovaná iba pri dostupných env premenných.
+
+Podpor:
+
+- email a heslo,
+- magic link,
+- Google OAuth,
+- logout,
+- obnovenie session.
+
+Synchronizovať možno:
+
+- profil,
+- zoznam metadát hier,
+- nastavenia,
+- profily ovládania,
+- save states,
+- históriu hrania.
+
+Nesynchronizovať:
+
+- ROM,
+- ISO,
+- BIN,
+- CHD,
+- CSO,
+- BIOS,
+- celé archívy.
+
+Vytvor SQL migrácie:
+
+profiles
+game_library_metadata
+play_sessions
+save_states
+controller_profiles
+emulator_settings
+user_preferences
+
+Zapni Row Level Security.
+
+Každá politika musí overovať:
+
+auth.uid() = user_id
+
+Service role key nikdy nepouži v klientskom bundle.
+
+==================================================
+22. PWA
+==================================================
+
+Vytvor plnohodnotnú PWA.
+
+Implementuj:
+
+- manifest,
+- ikony 192 a 512,
+- maskable ikony,
+- splash screen,
+- install prompt,
+- offline shell,
+- service worker,
+- bezpečnú aktualizáciu aplikácie,
+- offline prístup ku knižnici a nastaveniam.
+
+Nedávaj veľké herné súbory do Cache API.
+
+Tie zostávajú v OPFS.
+
+Necachuj:
+
+- OAuth odpovede,
+- Google Drive tokeny,
+- BIOS,
+- ROM,
+- ISO,
+- BIN,
+- CHD,
+- používateľské save state API odpovede bez správnej stratégie.
+
+Novú verziu service workera neaktivuj agresívne počas rozohranej hry.
+
+==================================================
+23. CROSS-ORIGIN IZOLÁCIA
+==================================================
+
+Over, či jednotlivé emulačné jadrá vyžadujú:
+
+- SharedArrayBuffer
+- Cross-Origin-Opener-Policy
+- Cross-Origin-Embedder-Policy
+
+Hlavičky nastav iba podľa reálnych požiadaviek.
+
+Otestuj konflikt s:
+
+- Google Picker,
+- Google Identity Services,
+- externými obrázkami,
+- Supabase,
+- service workerom.
+
+Ak treba, vytvor oddelenú route alebo samostatný režim pre cross-origin isolated emulator player.
+
+Nevkladaj COEP globálne bez testovania.
+
+==================================================
+24. DIAGNOSTIKA
+==================================================
+
+Vytvor stránku:
+
+/diagnostics
+
+Zobraz:
+
+- user agent,
+- operačný systém,
+- typ zariadenia,
+- počet CPU jadier,
+- deviceMemory, ak je dostupné,
+- WebAssembly,
+- WebGL,
+- WebGL2,
+- renderer,
+- SharedArrayBuffer,
+- crossOriginIsolated,
+- AudioContext,
+- Gamepad API,
+- IndexedDB,
+- OPFS,
+- Service Worker,
+- Storage API,
+- dostupné miesto,
+- persistent storage,
+- pripojené ovládače,
+- aktívne emulačné jadro,
+- FPS,
+- frame time,
+- audio latency,
+- posledné chyby.
+
+Pridaj:
+
+„Kopírovať diagnostický report“
+
+Report nesmie obsahovať:
+
+- tokeny,
+- heslá,
+- BIOS obsah,
+- názvy súkromných Drive súborov bez súhlasu,
+- citlivé osobné údaje.
+
+==================================================
+25. DIZAJN A UX
+==================================================
+
+Vytvor moderný, čistý a profesionálny herný dizajn.
+
+Štýl:
+
+- tmavé pozadie,
+- jemné retro prvky,
+- moderné karty,
+- kvalitná typografia,
+- minimum vizuálneho balastu,
+- dobrý kontrast,
+- responzívne rozloženie,
+- jednoduché animácie.
+
+Nepoužívaj prehnané množstvo neonových efektov.
+
+Desktop:
+
+- ľavý sidebar,
+- hlavný obsah,
+- veľké karty hier.
+
+Mobil:
+
+- spodná navigácia,
+- maximálne päť hlavných položiek,
+- herná obrazovka na šírku,
+- bezpečné zóny pre iPhone.
+
+Zabezpeč:
+
+- klávesovú navigáciu,
+- focus states,
+- aria-label,
+- prístupné dialógy,
+- dostatočnú veľkosť dotykových prvkov.
+
+==================================================
+26. PRÁVNE STRÁNKY
+==================================================
+
+Vytvor:
+
+- Právne informácie
+- Ochrana súkromia
+- Podmienky používania
+- Ukladanie dát
+
+Pri prvom importe vyžiadaj potvrdenie:
+
+„Potvrdzujem, že nahrávam vlastnú legálne získanú záložnú kópiu hry a mám právo tento obsah používať.“
+
+Jasne uveď:
+
+- aplikácia neposkytuje hry,
+- aplikácia neposkytuje BIOS,
+- aplikácia neponúka verejnú ROM knižnicu,
+- aplikácia nepodporuje zdieľanie komerčných hier,
+- herné súbory zostávajú lokálne,
+- používateľ zodpovedá za svoje súbory.
+
+==================================================
+27. CHYBOVÉ STAVY
+==================================================
+
+Vytvor centralizovaný systém chýb.
+
+Podpor minimálne:
+
+- nepodporovaný formát,
+- poškodený archív,
+- archív chránený heslom,
+- nesprávne heslo,
+- ZIP alebo RAR bomba,
+- path traversal,
+- nedostatok miesta,
+- nedostatok pamäte,
+- chýbajúci BIOS,
+- neplatný BIOS,
+- chýbajúci BIN súbor v CUE,
+- nenájdený štartovací súbor,
+- nejednoznačná platforma,
+- poškodený ISO obraz,
+- neplatný Google Drive odkaz,
+- súkromný Drive súbor,
+- CORS blokovanie,
+- emulátor sa neinicializoval,
+- jadro nie je dostupné,
+- hra nie je kompatibilná,
+- WebGL2 nie je dostupné,
+- zvuk je blokovaný prehliadačom,
+- save state je nekompatibilný.
+
+Každá chyba musí obsahovať:
+
+- čo sa stalo,
+- pravdepodobnú príčinu,
+- odporúčané riešenie,
+- technický detail rozbaliteľný používateľom,
+- tlačidlo Opakovať,
+- tlačidlo Späť.
+
+==================================================
+28. TESTOVANIE
+==================================================
+
+Použi Vitest na unit testy.
+
+Testuj:
+
+- Google Drive URL parser,
+- cestnú normalizáciu,
+- path traversal,
+- limity archívov,
+- detekciu platformy,
+- DOS launcher detection,
+- CUE parser,
+- BIN referencie,
+- IndexedDB repository,
+- OPFS utilities,
+- emulator factory,
+- emulator lifecycle,
+- gamepad mapping,
+- save state kompatibilitu.
+
+Použi React Testing Library na komponenty:
+
+- import dialóg,
+- platform selection,
+- BIOS manager,
+- virtual gamepad,
+- error display,
+- game detail.
+
+Použi Playwright na E2E:
+
+1. otvorenie aplikácie,
+2. import malej DOS testovacej hry,
+3. rozbalenie ZIP,
+4. uloženie do knižnice,
+5. spustenie DOS emulátora,
+6. test klávesového vstupu,
+7. uloženie save state,
+8. ukončenie hry,
+9. znovuotvorenie aplikácie,
+10. obnovenie knižnice,
+11. odstránenie hry,
+12. kontrola vymazania OPFS dát,
+13. mobilný layout,
+14. PWA offline shell.
+
+Použi iba vlastný alebo jednoznačne legálny testovací obsah.
+
+==================================================
+29. CI
+==================================================
+
+Vytvor GitHub Actions workflow.
+
+Pri každom pushi a pull requeste spusti:
+
+- npm ci
+- npm run typecheck
+- npm run lint
+- npm run test
+- npm run build
+
+Voliteľne:
+
+- Playwright smoke test
+- npm audit
+- kontrola veľkosti bundle
+- kontrola tajných kľúčov
+
+Build nesmie ignorovať TypeScript chyby.
+
+Nastav:
+
+reactStrictMode: true
+
+Nepoužívaj:
+
+typescript.ignoreBuildErrors = true
+
+==================================================
+30. README A DOKUMENTÁCIA
+==================================================
+
+Vytvor kvalitný README.md.
+
+Musí obsahovať:
+
+- popis projektu,
+- stav jednotlivých emulátorov,
+- podporované formáty,
+- technické obmedzenia,
+- právne upozornenie,
+- systémové požiadavky,
+- inštaláciu,
+- lokálne spustenie,
+- build,
+- testovanie,
+- PWA,
+- OPFS,
+- Supabase,
+- Google Cloud,
+- Google Picker,
+- nasadenie na Vercel,
+- cross-origin hlavičky,
+- známe problémy,
+- riešenie problémov.
+
+Vytvor:
+
+.env.example
+
+Obsah:
+
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+NEXT_PUBLIC_ENABLE_PS2=false
+
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+
+SUPABASE_SERVICE_ROLE_KEY=
+
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=
+NEXT_PUBLIC_GOOGLE_API_KEY=
+NEXT_PUBLIC_GOOGLE_APP_ID=
+
+Service role key sa nesmie importovať do klientského kódu.
+
+==================================================
+31. IMPLEMENTAČNÉ ETAPY
+==================================================
+
+ETAPA 1 – základ
+
+- čistý Next.js projekt,
+- TypeScript strict,
+- Tailwind,
+- dizajnový systém,
+- routing,
+- layout,
+- PWA manifest,
+- základné stores,
+- spoločné typy.
+
+ETAPA 2 – lokálne úložisko
+
+- IndexedDB,
+- OPFS,
+- streaming zápis,
+- storage estimate,
+- persistence,
+- bezpečné mazanie,
+- rollback importu.
+
+ETAPA 3 – import
+
+- file picker,
+- viac súborov,
+- drag and drop,
+- ZIP worker,
+- RAR worker,
+- bezpečnostné validácie,
+- progress,
+- cancellation.
+
+ETAPA 4 – detekcia
+
+- DOS,
+- PS1,
+- PS2,
+- ISO analýza,
+- CUE parser,
+- manuálny výber.
+
+ETAPA 5 – DOS
+
+- reálny js-dos adapter,
+- spustenie,
+- input,
+- save states,
+- reset,
+- cleanup.
+
+ETAPA 6 – PS1
+
+- lokálne EmulatorJS assety,
+- BIOS manager,
+- BIN/CUE,
+- CHD,
+- input,
+- memory card,
+- save states,
+- viac diskov.
+
+ETAPA 7 – ovládanie
+
+- Gamepad API,
+- mapovanie,
+- VirtualGamepad,
+- DOS touchpad,
+- multitouch.
+
+ETAPA 8 – Google Drive
+
+- Picker,
+- verejné odkazy,
+- metadata,
+- streaming do OPFS,
+- fallbacky.
+
+ETAPA 9 – knižnica a UX
+
+- domov,
+- knižnica,
+- detail hry,
+- saves,
+- settings,
+- diagnostics.
+
+ETAPA 10 – PS2
+
+- Play!.js výskum,
+- reálna integrácia alebo korektné vypnutie,
+- feature flag,
+- výkonový profil.
+
+ETAPA 11 – cloud
+
+- Supabase Auth,
+- RLS,
+- metadata,
+- save states,
+- nastavenia.
+
+ETAPA 12 – testy a nasadenie
+
+- unit,
+- integration,
+- E2E,
+- CI,
+- README,
+- Vercel.
+
+==================================================
+32. KRITÉRIÁ DOKONČENIA
+==================================================
+
+Projekt je dokončený iba vtedy, keď:
+
+- build prejde bez TypeScript chýb,
+- lint prejde,
+- testy prejdú,
+- aplikácia funguje bez účtu,
+- ZIP sa rozbaľuje vo Web Workeri,
+- RAR je reálne podporovaný alebo nie je označený ako podporovaný,
+- veľké súbory sa nezapisujú cez jeden obrovský ArrayBuffer,
+- hry sa ukladajú do OPFS,
+- metadata sa ukladajú do IndexedDB,
+- DOS hra sa reálne spustí,
+- PS1 hra sa reálne spustí,
+- BIN + CUE funguje,
+- BIOS manager funguje,
+- fyzický gamepad odosiela vstupy,
+- virtuálny gamepad odosiela vstupy,
+- save states sa dajú uložiť a načítať,
+- Google Drive Picker je integrovaný,
+- verejný Drive odkaz má korektný fallback,
+- odstránenie hry odstráni aj jej OPFS súbory,
+- cleanup emulátora funguje,
+- PWA sa dá nainštalovať,
+- PS2 nepredstiera funkčnosť,
+- aplikácia neobsahuje komerčné hry ani BIOS.
+
+==================================================
+33. PRAVIDLÁ KVALITY
+==================================================
+
+1. Nepoužívaj `any`, ak sa mu dá rozumne vyhnúť.
+2. Neignoruj build chyby.
+3. Nepoužívaj prázdne catch bloky.
+4. Každú chybu zaloguj alebo spracuj.
+5. Nevytváraj falošné dokončené funkcie.
+6. Nevytváraj tlačidlo bez funkcie.
+7. Herné súbory neposielaj na server.
+8. Veľké súbory nečítaj celé do RAM.
+9. Používaj Web Workers.
+10. Používaj lazy loading emulačných jadier.
+11. Emulačné jadrá sa nesmú načítať na domovskej stránke.
+12. Po ukončení hry vždy vykonaj cleanup.
+13. Každú deklarovanú podporu formátu otestuj.
+14. Každý používateľský vstup validuj.
+15. Dodržuj licencie použitých jadier.
+16. Nepoužívaj nelegálne testovacie ROM alebo BIOS.
+17. Nepoužívaj Vercel serverless funkcie ako proxy pre ISO.
+18. Zachovaj modulárnu architektúru.
+19. Všetky persistované zmeny zapíš aj do IndexedDB.
+20. Dokumentáciu aktualizuj počas implementácie.
+
+==================================================
+34. ZÁVEREČNÝ REPORT
+==================================================
+
+Po dokončení vytvor súbor:
+
+IMPLEMENTATION_REPORT.md
+
+Uveď:
+
+1. čo bolo implementované,
+2. architektúru projektu,
+3. stav DOS emulácie,
+4. stav PS1 emulácie,
+5. stav PS2 emulácie,
+6. podporované formáty,
+7. známe obmedzenia,
+8. env premenné,
+9. nastavenie Google Drive,
+10. nastavenie Supabase,
+11. lokálne spustenie,
+12. build a test výsledky,
+13. nasadenie na Vercel,
+14. bezpečnostné rozhodnutia,
+15. funkcie odložené do ďalšej verzie.
+
+Neukonči prácu iba zoznamom odporúčaní. Implementuj celý projekt v maximálnom možnom rozsahu a jasne odlíš:
+
+- dokončené,
+- experimentálne,
+- vypnuté,
+- neimplementované.

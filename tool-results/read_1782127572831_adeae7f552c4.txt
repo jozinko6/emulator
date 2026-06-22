@@ -1,0 +1,1004 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→/**
+     4→     4→ * ImportWizard — hlavný stavový automat pre import hier.
+     5→     5→ *
+     6→     6→ * Per prompt sekcia ETAPA 3. Stavy:
+     7→     7→ *   idle → selecting → reading → validating → extracting → detecting
+     8→     8→ *        → awaiting-user-selection (ak requiresUserSelection)
+     9→     9→ *        → storing → ready / error / cancelled
+    10→    10→ *
+    11→    11→ * Používa `useImportStore` zo `src/stores/import-store.ts`.
+    12→    12→ * Pri prvom importe zobrazuje právne potvrdenie.
+    13→    13→ *
+    14→    14→ * Komentáre v slovenčine.
+    15→    15→ */
+    16→    16→import { useCallback, useEffect, useRef, useState } from "react";
+    17→    17→import { v4 as uuid } from "uuid";
+    18→    18→import {
+    19→    19→  AlertTriangle,
+    20→    20→  CheckCircle2,
+    21→    21→  FileText,
+    22→    22→  Gamepad2,
+    23→    23→  Loader2,
+    24→    24→  Package,
+    25→    25→  RotateCcw,
+    26→    26→} from "lucide-react";
+    27→    27→import Link from "next/link";
+    28→    28→import { Button } from "@/components/ui/button";
+    29→    29→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+    30→    30→import { Checkbox } from "@/components/ui/checkbox";
+    31→    31→import { Label } from "@/components/ui/label";
+    32→    32→import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+    33→    33→import { Badge } from "@/components/ui/badge";
+    34→    34→import { useToast } from "@/hooks/use-toast";
+    35→    35→import { DropZone } from "@/components/import/drop-zone";
+    36→    36→import { ImportProgress } from "@/components/import/import-progress";
+    37→    37→import {
+    38→    38→  detectFormat,
+    39→    39→  isArchive,
+    40→    40→  isSupported,
+    41→    41→  type ImportableFormat,
+    42→    42→} from "@/components/import/format-detection";
+    43→    43→import {
+    44→    44→  summarizeArchive,
+    45→    45→  validateSummary,
+    46→    46→  checkEntriesForUnsafePaths,
+    47→    47→} from "@/lib/archive/archive-security";
+    48→    48→import { DEFAULT_ARCHIVE_LIMITS } from "@/lib/security/limits";
+    49→    49→import { normalizePath, extname } from "@/lib/security/path-normalizer";
+    50→    50→import {
+    51→    51→  streamFileToOpfs,
+    52→    52→  streamBlobToOpfs,
+    53→    53→  isStreamRequired,
+    54→    54→} from "@/lib/storage/streaming-writer";
+    55→    55→import { gameFilePath, cleanupPartialImport } from "@/lib/storage/opfs";
+    56→    56→import { putGame, putGameFile } from "@/lib/storage/repositories";
+    57→    57→import { fingerprintGame } from "@/lib/security/hashing";
+    58→    58→import { useImportStore } from "@/stores/import-store";
+    59→    59→import { useLibraryStore } from "@/stores/library-store";
+    60→    60→import type { ImportJobRecord } from "@/types/game";
+    61→    61→import type { GameRecord, GameFileRecord } from "@/types/game";
+    62→    62→import type { EmulatorPlatform } from "@/types/emulator";
+    63→    63→import type { ArchiveEntry } from "@/types/detection";
+    64→    64→import type { DetectionResult } from "@/types/detection";
+    65→    65→import type {
+    66→    66→  ArchiveWorkerRequest,
+    67→    67→  ArchiveWorkerResponse,
+    68→    68→} from "@/lib/archive/archive-types";
+    69→    69→import { RetroCloudError } from "@/types/errors";
+    70→    70→
+    71→    71→/** Source type label pre ImportJobRecord.sourceType. */
+    72→    72→function sourceTypeFor(format: string): string {
+    73→    73→  if (format === "zip" || format === "rar" || format === "7z") return format;
+    74→    74→  if (format === "jsdos") return "jsdos";
+    75→    75→  return "local-file";
+    76→    76→}
+    77→    77→
+    78→    78→/** Vytvorí nový ImportJobRecord. */
+    79→    79→function createJob(fileName: string, fileSize: number, sourceType: string): ImportJobRecord {
+    80→    80→  const now = Date.now();
+    81→    81→  return {
+    82→    82→    id: uuid(),
+    83→    83→    status: "selecting",
+    84→    84→    sourceType,
+    85→    85→    fileName,
+    86→    86→    totalBytes: fileSize,
+    87→    87→    processedBytes: 0,
+    88→    88→    extractedBytes: 0,
+    89→    89→    fileCount: 0,
+    90→    90→    processedFiles: 0,
+    91→    91→    currentStep: "Pripravený na spracovanie",
+    92→    92→    warnings: [],
+    93→    93→    createdAt: now,
+    94→    94→    updatedAt: now,
+    95→    95→  };
+    96→    96→}
+    97→    97→
+    98→    98→export function ImportWizard() {
+    99→    99→  const {
+   100→   100→    currentJob,
+   101→   101→    setJob,
+   102→   102→    updateJob,
+   103→   103→    finalizeJob,
+   104→   104→    legalConfirmed,
+   105→   105→    setLegalConfirmed,
+   106→   106→    reset,
+   107→   107→  } = useImportStore();
+   108→   108→  const addGame = useLibraryStore((s) => s.addGame);
+   109→   109→  const { toast } = useToast();
+   110→   110→
+   111→   111→  // Lokálny stav
+   112→   112→  const [legalChecked, setLegalChecked] = useState(false);
+   113→   113→  const [selectedPlatform, setSelectedPlatform] = useState<EmulatorPlatform | null>(null);
+   114→   114→  const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
+   115→   115→  const [extractedEntries, setExtractedEntries] = useState<ArchiveEntry[]>([]);
+   116→   116→
+   117→   117→  // Refy pre async operácie
+   118→   118→  const abortRef = useRef<AbortController | null>(null);
+   119→   119→  const workerRef = useRef<Worker | null>(null);
+   120→   120→  const gameIdRef = useRef<string>("");
+   121→   121→  const writeQueueRef = useRef<
+   122→   122→    Array<{ path: string; data: Uint8Array; size: number }>
+   123→   123→  >([]);
+   124→   124→  const writePromiseRef = useRef<Promise<void> | null>(null);
+   125→   125→  const extractedEntriesRef = useRef<ArchiveEntry[]>([]);
+   126→   126→  const mainFileRef = useRef<string>("");
+   127→   127→
+   128→   128→  // Cleanup pri unmount
+   129→   129→  useEffect(() => {
+   130→   130→    return () => {
+   131→   131→      abortRef.current?.abort();
+   132→   132→      if (workerRef.current) {
+   133→   133→        workerRef.current.terminate();
+   134→   134→        workerRef.current = null;
+   135→   135→      }
+   136→   136→    };
+   137→   137→  }, []);
+   138→   138→
+   139→   139→  /**
+   140→   140→   * Začne import — volá sa z DropZone po výbere súborov.
+   141→   141→   * Spracuje len prvý súbor (ostatné preskočí s upozornením).
+   142→   142→   */
+   143→   143→  const handleFilesSelected = useCallback(
+   144→   144→    (files: File[]) => {
+   145→   145→      if (files.length === 0) return;
+   146→   146→      if (!legalConfirmed) return;
+   147→   147→
+   148→   148→      const file = files[0];
+   149→   149→      const fmt = detectFormat(file.name);
+   150→   150→      if (!isSupported(fmt)) {
+   151→   151→        toast({
+   152→   152→          title: "Nepodporovaný súbor",
+   153→   153→          description: `Súbor ${file.name} nie je podporovaného formátu.`,
+   154→   154→          variant: "destructive",
+   155→   155→        });
+   156→   156→        return;
+   157→   157→      }
+   158→   158→
+   159→   159→      if (files.length > 1) {
+   160→   160→        toast({
+   161→   161→          title: "Viac súborov",
+   162→   162→          description: `Bude sa importovať iba ${file.name}. Ostatné presuňte neskôr.`,
+   163→   163→        });
+   164→   164→      }
+   165→   165→
+   166→   166→      const sourceType = sourceTypeFor(fmt);
+   167→   167→      const job = createJob(file.name, file.size, sourceType);
+   168→   168→      setJob(job);
+   169→   169→      setExtractedEntries([]);
+   170→   170→      setDetectionResult(null);
+   171→   171→      setSelectedPlatform(null);
+   172→   172→      extractedEntriesRef.current = [];
+   173→   173→      mainFileRef.current = "";
+   174→   174→      writeQueueRef.current = [];
+   175→   175→      writePromiseRef.current = null;
+   176→   176→
+   177→   177→      // Spustenie pipeline
+   178→   178→      void runPipeline(file, fmt, job);
+   179→   179→    },
+   180→   180→     
+   181→   181→    [legalConfirmed, setJob, toast]
+   182→   182→  );
+   183→   183→
+   184→   184→  /**
+   185→   185→   * Hlavná pipeline — spúšťa jednotlivé fázy importu.
+   186→   186→   * Je izolovaná do jednej async funkcie kvôli čitateľnosti.
+   187→   187→   */
+   188→   188→  const runPipeline = useCallback(
+   189→   189→    async (file: File, format: ImportableFormat, initialJob: ImportJobRecord) => {
+   190→   190→      const jobId = initialJob.id;
+   191→   191→      const gameId = uuid();
+   192→   192→      gameIdRef.current = gameId;
+   193→   193→      const abort = new AbortController();
+   194→   194→      abortRef.current = abort;
+   195→   195→
+   196→   196→      try {
+   197→   197→        // === READING ===
+   198→   198→        updateJob({ status: "reading", currentStep: "Čítanie súboru..." });
+   199→   199→
+   200→   200→        // Pre archívy potrebujeme načítať dáta (pre ZIP) alebo File (pre RAR/7z)
+   201→   201→        // Streamer sa postará o OPFS neskôr.
+   202→   202→        let entries: ArchiveEntry[] = [];
+   203→   203→
+   204→   204→        if (isArchive(format)) {
+   205→   205→          // === VALIDATING ===
+   206→   206→          updateJob({ status: "validating", currentStep: "Validácia archívu..." });
+   207→   207→
+   208→   208→          // Pre ZIP potrebujeme Uint8Array — ak je súbor veľký, varujeme.
+   209→   209→          // Pre RAR/7z pošleme File priamo do workera.
+   210→   210→          const workerPayload: File | ArrayBuffer =
+   211→   211→            format === "zip"
+   212→   212→              ? await file.arrayBuffer()
+   213→   213→              : file;
+   214→   214→
+   215→   215→          // Spustenie workera pre list+extract
+   216→   216→          entries = await runArchiveWorker(
+   217→   217→            format as "zip" | "rar" | "7z",
+   218→   218→            workerPayload,
+   219→   219→            file.name,
+   220→   220→            abort.signal
+   221→   221→          );
+   222→   222→
+   223→   223→          // Skontrolujeme bezpečnosť archívu
+   224→   224→          const summary = summarizeArchive(entries);
+   225→   225→          const validation = validateSummary(summary, DEFAULT_ARCHIVE_LIMITS);
+   226→   226→          if (!validation.ok) {
+   227→   227→            // Pridáme varovania do job-u
+   228→   228→            updateJob({ warnings: [...(currentJob?.warnings ?? []), ...validation.reasons] });
+   229→   229→            // Ak je to archívna bomba alebo path traversal, zastavíme
+   230→   230→            const critical = validation.reasons.some(
+   231→   231→              (r) => r.includes("archívnu bombu") || r.includes("path traversal")
+   232→   232→            );
+   233→   233→            if (critical) {
+   234→   234→              throw new RetroCloudError(
+   235→   235→                "ARCHIVE_BOMB_DETECTED",
+   236→   236→                "Archív bol zamietnutý z bezpečnostných dôvodov."
+   237→   237→              );
+   238→   238→            }
+   239→   239→          }
+   240→   240→
+   241→   241→          // Skontrolujeme nebezpečné cesty
+   242→   242→          const unsafePaths = checkEntriesForUnsafePaths(entries);
+   243→   243→          if (unsafePaths.length > 0) {
+   244→   244→            updateJob({
+   245→   245→              warnings: [
+   246→   246→                ...(currentJob?.warnings ?? []),
+   247→   247→                ...unsafePaths.slice(0, 50).map((p) => `Nebezpečná cesta: ${p}`),
+   248→   248→              ],
+   249→   249→            });
+   250→   250→            // Filtrujeme von nebezpečné cesty
+   251→   251→            entries = entries.filter((e) => {
+   252→   252→              try {
+   253→   253→                normalizePath(e.path);
+   254→   254→                return true;
+   255→   255→              } catch {
+   256→   256→                return false;
+   257→   257→              }
+   258→   258→            });
+   259→   259→          }
+   260→   260→
+   261→   261→          // === EXTRACTING (streaming do OPFS) ===
+   262→   262→          updateJob({
+   263→   263→            status: "extracting",
+   264→   264→            currentStep: "Rozbaľovanie archívu a zápis do OPFS...",
+   265→   265→            fileCount: summary.totalFiles,
+   266→   266→            totalBytes: summary.totalUncompressedSize,
+   267→   267→          });
+   268→   268→
+   269→   269→          // Worker už rozbalil a poslal entries — writes už prebehli v runArchiveWorker.
+   270→   270→          extractedEntriesRef.current = entries;
+   271→   271→          setExtractedEntries(entries);
+   272→   272→        } else {
+   273→   273→          // Voľný súbor — žiadny archív na rozbalenie
+   274→   274→          updateJob({
+   275→   275→            status: "validating",
+   276→   276→            currentStep: "Kontrola súboru...",
+   277→   277→            fileCount: 1,
+   278→   278→            totalBytes: file.size,
+   279→   279→          });
+   280→   280→
+   281→   281→          if (isStreamRequired(file.size)) {
+   282→   282→            // Veľký súbor — streamujeme priamo v "storing" fáze
+   283→   283→            updateJob({
+   284→   284→              warnings: [
+   285→   285→                ...(currentJob?.warnings ?? []),
+   286→   286→                `Súbor je väčší ako 256 MB (${(file.size / 1024 / 1024).toFixed(0)} MB) — bude sa streamovať.`,
+   287→   287→              ],
+   288→   288→            });
+   289→   289→          }
+   290→   290→
+   291→   291→          // Vytvoríme "pseudo-entry" pre detekciu
+   292→   292→          const pseudoEntry: ArchiveEntry = {
+   293→   293→            path: file.name,
+   294→   294→            size: file.size,
+   295→   295→            isDirectory: false,
+   296→   296→          };
+   297→   297→          entries = [pseudoEntry];
+   298→   298→          extractedEntriesRef.current = entries;
+   299→   299→          setExtractedEntries(entries);
+   300→   300→
+   301→   301→          // === STORING (streaming do OPFS) ===
+   302→   302→          updateJob({
+   303→   303→            status: "storing",
+   304→   304→            currentStep: "Zápis súboru do OPFS...",
+   305→   305→          });
+   306→   306→
+   307→   307→          const opfsPath = gameFilePath(gameId, file.name);
+   308→   308→          const result = await streamFileToOpfs(
+   309→   309→            file,
+   310→   310→            opfsPath,
+   311→   311→            (written) => {
+   312→   312→              updateJob({
+   313→   313→                processedBytes: written,
+   314→   314→                extractedBytes: written,
+   315→   315→              });
+   316→   316→            },
+   317→   317→            abort.signal
+   318→   318→          );
+   319→   319→
+   320→   320→          updateJob({
+   321→   321→            processedBytes: result.size,
+   322→   322→            extractedBytes: result.size,
+   323→   323→            processedFiles: 1,
+   324→   324→          });
+   325→   325→
+   326→   326→          mainFileRef.current = file.name;
+   327→   327→        }
+   328→   328→
+   329→   329→        // Vyberieme main file pre detekciu
+   330→   330→        const mainFile = pickMainFile(extractedEntriesRef.current);
+   331→   331→        mainFileRef.current = mainFile;
+   332→   332→
+   333→   333→        // === DETECTING ===
+   334→   334→        updateJob({
+   335→   335→          status: "detecting",
+   336→   336→          currentStep: "Detekcia platformy...",
+   337→   337→        });
+   338→   338→
+   339→   339→        const detection = await runDetectionWorker({
+   340→   340→          fileName: mainFile,
+   341→   341→          fileSize: extractedEntriesRef.current.find((e) => e.path === mainFile)?.size ?? 0,
+   342→   342→        });
+   343→   343→        setDetectionResult(detection);
+   344→   344→
+   345→   345→        // === AWAITING USER SELECTION (ak potrebné) ===
+   346→   346→        if (detection.requiresUserSelection || !detection.platform) {
+   347→   347→          updateJob({
+   348→   348→            status: "awaiting-user-selection",
+   349→   349→            currentStep: "Vyberte platformu hry",
+   350→   350→          });
+   351→   351→          // Tu sa pipeline pozastaví — pokračuje sa až po kliknutí na tlačidlo
+   352→   352→          return;
+   353→   353→        }
+   354→   354→
+   355→   355→        // Pokračujeme priamo na finalization
+   356→   356→        await finalizeImport(detection.platform);
+   357→   357→
+   358→   358→         
+   359→   359→      } catch (e: any) {
+   360→   360→        if (abort.signal.aborted) {
+   361→   361→          updateJob({
+   362→   362→            status: "cancelled",
+   363→   363→            currentStep: "Import bol zrušený",
+   364→   364→          });
+   365→   365→          // Cleanup OPFS
+   366→   366→          await cleanupPartialImport(gameId).catch(() => undefined);
+   367→   367→          return;
+   368→   368→        }
+   369→   369→        const message = e instanceof Error ? e.message : String(e);
+   370→   370→        const code = e instanceof RetroCloudError ? e.code : "UNKNOWN_ERROR";
+   371→   371→        updateJob({
+   372→   372→          status: "error",
+   373→   373→          currentStep: "Import zlyhal",
+   374→   374→          error: `${message}${code !== "UNKNOWN_ERROR" ? ` (kód: ${code})` : ""}`,
+   375→   375→        });
+   376→   376→        // Cleanup OPFS pri chybe
+   377→   377→        await cleanupPartialImport(gameId).catch(() => undefined);
+   378→   378→        toast({
+   379→   379→          title: "Import zlyhal",
+   380→   380→          description: message,
+   381→   381→          variant: "destructive",
+   382→   382→        });
+   383→   383→      } finally {
+   384→   384→        if (workerRef.current) {
+   385→   385→          workerRef.current.terminate();
+   386→   386→          workerRef.current = null;
+   387→   387→        }
+   388→   388→      }
+   389→   389→    },
+   390→   390→     
+   391→   391→    [updateJob, currentJob, setJob, toast]
+   392→   392→  );
+   393→   393→
+   394→   394→  /**
+   395→   395→   * Spustí archive worker pre rozbalenie archívu.
+   396→   396→   * Vráti zoznam extrahovaných záznamov a súčasne streamuje dáta do OPFS.
+   397→   397→   */
+   398→   398→  const runArchiveWorker = useCallback(
+   399→   399→    (
+   400→   400→      format: "zip" | "rar" | "7z",
+   401→   401→      payload: File | ArrayBuffer,
+   402→   402→      fileName: string,
+   403→   403→      signal: AbortSignal
+   404→   404→    ): Promise<ArchiveEntry[]> => {
+   405→   405→      return new Promise<ArchiveEntry[]>((resolve, reject) => {
+   406→   406→        const worker = new Worker(
+   407→   407→          new URL("../../workers/archive.worker.ts", import.meta.url),
+   408→   408→          { type: "module" }
+   409→   409→        );
+   410→   410→        workerRef.current = worker;
+   411→   411→        const entries: ArchiveEntry[] = [];
+   412→   412→        let totalFiles = 0;
+   413→   413→        let totalBytes = 0;
+   414→   414→        let processedFiles = 0;
+   415→   415→        let processedBytes = 0;
+   416→   416→        let resolved = false;
+   417→   417→
+   418→   418→        const finish = (err?: Error) => {
+   419→   419→          if (resolved) return;
+   420→   420→          resolved = true;
+   421→   421→          worker.onmessage = null;
+   422→   422→          if (err) {
+   423→   423→            reject(err);
+   424→   424→          } else {
+   425→   425→            resolve(entries);
+   426→   426→          }
+   427→   427→        };
+   428→   428→
+   429→   429→        worker.onmessage = (e: MessageEvent<ArchiveWorkerResponse>) => {
+   430→   430→          const msg = e.data;
+   431→   431→          if (!msg || typeof msg !== "object" || !("type" in msg)) return;
+   432→   432→
+   433→   433→          switch (msg.type) {
+   434→   434→            case "progress": {
+   435→   435→              totalFiles = msg.totalFiles;
+   436→   436→              totalBytes = msg.totalBytes;
+   437→   437→              updateJob({
+   438→   438→                processedBytes: msg.processedBytes,
+   439→   439→                totalBytes,
+   440→   440→                processedFiles: msg.processedFiles,
+   441→   441→                fileCount: totalFiles,
+   442→   442→                extractedBytes: msg.processedBytes,
+   443→   443→              });
+   444→   444→              break;
+   445→   445→            }
+   446→   446→            case "warning": {
+   447→   447→              const warning = `${msg.path} — ${msg.reason}`;
+   448→   448→              updateJob({
+   449→   449→                warnings: [...(useImportStore.getState().currentJob?.warnings ?? []), warning],
+   450→   450→              });
+   451→   451→              break;
+   452→   452→            }
+   453→   453→            case "entry": {
+   454→   454→              // Pridáme do fronty na OPFS zápis
+   455→   455→              writeQueueRef.current.push({
+   456→   456→                path: msg.path,
+   457→   457→                data: msg.data,
+   458→   458→                size: msg.size,
+   459→   459→              });
+   460→   460→              entries.push({
+   461→   461→                path: msg.path,
+   462→   462→                size: msg.size,
+   463→   463→                isDirectory: false,
+   464→   464→              });
+   465→   465→              processedFiles += 1;
+   466→   466→              processedBytes += msg.size;
+   467→   467→              // Spustíme flush ak nie je aktívny
+   468→   468→              if (!writePromiseRef.current) {
+   469→   469→                writePromiseRef.current = flushWriteQueue(
+   470→   470→                  gameIdRef.current,
+   471→   471→                  abortRef.current?.signal ?? new AbortController().signal,
+   472→   472→                  (written) => {
+   473→   473→                    updateJob({ processedBytes: written });
+   474→   474→                  }
+   475→   475→                ).finally(() => {
+   476→   476→                  writePromiseRef.current = null;
+   477→   477→                });
+   478→   478→              }
+   479→   479→              break;
+   480→   480→            }
+   481→   481→            case "done": {
+   482→   482→              // Počkáme na vyprázdnenie write fronty
+   483→   483→              const wait = () => {
+   484→   484→                if (writePromiseRef.current) {
+   485→   485→                  writePromiseRef.current.then(wait, wait);
+   486→   486→                } else {
+   487→   487→                  finish();
+   488→   488→                }
+   489→   489→              };
+   490→   490→              wait();
+   491→   491→              break;
+   492→   492→            }
+   493→   493→            case "cancelled": {
+   494→   494→              finish(new RetroCloudError("UNKNOWN_ERROR", "Rozbaľovanie zrušené."));
+   495→   495→              break;
+   496→   496→            }
+   497→   497→            case "error": {
+   498→   498→              finish(
+   499→   499→                new RetroCloudError(
+   500→   500→                  (msg as { code: string }).code as RetroCloudError["code"],
+   501→   501→                  (msg as { message: string }).message
+   502→   502→                )
+   503→   503→              );
+   504→   504→              break;
+   505→   505→            }
+   506→   506→            case "entries":
+   507→   507→              // Ignorujeme — používame entry správy
+   508→   508→              break;
+   509→   509→            default:
+   510→   510→              // Neznáma správa — ignorujeme
+   511→   511→              break;
+   512→   512→          }
+   513→   513→        };
+   514→   514→
+   515→   515→        // Pošleme extract požiadavku
+   516→   516→        const request: ArchiveWorkerRequest = {
+   517→   517→          type: "extract",
+   518→   518→          format,
+   519→   519→          payload,
+   520→   520→          fileName,
+   521→   521→        };
+   522→   522→        // Pre ArrayBuffer použijeme transfer list
+   523→   523→        if (payload instanceof ArrayBuffer) {
+   524→   524→          worker.postMessage(request, [payload]);
+   525→   525→        } else {
+   526→   526→          worker.postMessage(request);
+   527→   527→        }
+   528→   528→
+   529→   529→        // Abort handler
+   530→   530→        signal.addEventListener("abort", () => {
+   531→   531→          if (workerRef.current) {
+   532→   532→            const cancelReq: ArchiveWorkerRequest = { type: "cancel" };
+   533→   533→            workerRef.current.postMessage(cancelReq);
+   534→   534→          }
+   535→   535→        });
+   536→   536→      });
+   537→   537→    },
+   538→   538→    [updateJob]
+   539→   539→  );
+   540→   540→
+   541→   541→  /**
+   542→   542→   * Postupne zapíše frontu extrahovaných záznamov do OPFS.
+   543→   543→   * Sériovo — aby sme nezaťažili OPFS paralelnými zápismi.
+   544→   544→   */
+   545→   545→  const flushWriteQueue = useCallback(
+   546→   546→    async (
+   547→   547→      gameId: string,
+   548→   548→      signal: AbortSignal,
+   549→   549→      onProgress: (written: number) => void
+   550→   550→    ): Promise<void> => {
+   551→   551→      let written = 0;
+   552→   552→      while (writeQueueRef.current.length > 0) {
+   553→   553→        if (signal.aborted) {
+   554→   554→          throw new RetroCloudError("UNKNOWN_ERROR", "Zápis zrušený.");
+   555→   555→        }
+   556→   556→        const item = writeQueueRef.current.shift()!;
+   557→   557→        const opfsPath = gameFilePath(gameId, item.path);
+   558→   558→        // Kopírujeme dáta do čistého ArrayBufferu, aby sme vyhli TS problémom
+   559→   559→        // s Uint8Array<ArrayBufferLike> v Blob konštruktore.
+   560→   560→        const buffer = new ArrayBuffer(item.data.byteLength);
+   561→   561→        new Uint8Array(buffer).set(item.data);
+   562→   562→        const blob = new Blob([buffer]);
+   563→   563→        const result = await streamBlobToOpfs(blob, opfsPath, (w) => {
+   564→   564→          onProgress(written + w);
+   565→   565→        }, signal);
+   566→   566→        written += result.size;
+   567→   567→        onProgress(written);
+   568→   568→      }
+   569→   569→    },
+   570→   570→    []
+   571→   571→  );
+   572→   572→
+   573→   573→  /**
+   574→   574→   * Spustí detection worker (mock).
+   575→   575→   */
+   576→   576→  const runDetectionWorker = useCallback(
+   577→   577→    async (input: { fileName: string; fileSize: number }): Promise<DetectionResult> => {
+   578→   578→      return new Promise<DetectionResult>((resolve, reject) => {
+   579→   579→        const worker = new Worker(
+   580→   580→          new URL("../../workers/detection.worker.ts", import.meta.url),
+   581→   581→          { type: "module" }
+   582→   582→        );
+   583→   583→        const id = uuid();
+   584→   584→        worker.onmessage = (e: MessageEvent) => {
+   585→   585→          const msg = e.data as { type: string; id: string; result?: DetectionResult; message?: string };
+   586→   586→          if (msg.type === "done" && msg.id === id) {
+   587→   587→            worker.terminate();
+   588→   588→            resolve(msg.result!);
+   589→   589→          } else if (msg.type === "error") {
+   590→   590→            worker.terminate();
+   591→   591→            reject(new Error(msg.message ?? "Detekcia zlyhala"));
+   592→   592→          }
+   593→   593→        };
+   594→   594→        worker.onerror = (e) => {
+   595→   595→          worker.terminate();
+   596→   596→          reject(new Error(`Worker error: ${e.message}`));
+   597→   597→        };
+   598→   598→        worker.postMessage({
+   599→   599→          type: "detect",
+   600→   600→          id,
+   601→   601→          input: {
+   602→   602→            fileName: input.fileName,
+   603→   603→            fileSize: input.fileSize,
+   604→   604→          },
+   605→   605→        });
+   606→   606→      });
+   607→   607→    },
+   608→   608→    []
+   609→   609→  );
+   610→   610→
+   611→   611→  /**
+   612→   612→   * Finalizuje import — uloží GameRecord + GameFileRecords do IndexedDB.
+   613→   613→   */
+   614→   614→  const finalizeImport = useCallback(
+   615→   615→    async (platform: EmulatorPlatform) => {
+   616→   616→      if (!currentJob) return;
+   617→   617→      const gameId = gameIdRef.current;
+   618→   618→      const entries = extractedEntriesRef.current;
+   619→   619→      const mainFile = mainFileRef.current || entries[0]?.path || "unknown";
+   620→   620→
+   621→   621→      updateJob({
+   622→   622→        status: "storing",
+   623→   623→        currentStep: "Ukladanie metadát...",
+   624→   624→      });
+   625→   625→
+   626→   626→      // Pre voľné súbory sme už streamovali — pre archívy sme streamovali počas extrakcie.
+   627→   627→      // Tu len uložíme metadáta.
+   628→   628→
+   629→   629→      // Vytvoríme GameFileRecord pre každý extrahovaný súbor
+   630→   630→      const fileRecords: GameFileRecord[] = entries
+   631→   631→        .filter((e) => !e.isDirectory)
+   632→   632→        .map((e) => {
+   633→   633→          const ext = extname(e.path);
+   634→   634→          return {
+   635→   635→            id: uuid(),
+   636→   636→            gameId,
+   637→   637→            relativePath: e.path,
+   638→   638→            opfsPath: gameFilePath(gameId, e.path),
+   639→   639→            fileName: e.path.split("/").pop() ?? e.path,
+   640→   640→            extension: ext,
+   641→   641→            size: e.size,
+   642→   642→          } satisfies GameFileRecord;
+   643→   643→        });
+   644→   644→
+   645→   645→      const totalSize = fileRecords.reduce((acc, f) => acc + f.size, 0);
+   646→   646→      const fingerprint = fingerprintGame(
+   647→   647→        fileRecords.map((f) => ({
+   648→   648→          relativePath: f.relativePath,
+   649→   649→          size: f.size,
+   650→   650→          hash: f.hash,
+   651→   651→        }))
+   652→   652→      );
+   653→   653→
+   654→   654→      const game: GameRecord = {
+   655→   655→        id: gameId,
+   656→   656→        name: deriveGameName(mainFile),
+   657→   657→        platform,
+   658→   658→        sourceType: currentJob.sourceType,
+   659→   659→        mainFile,
+   660→   660→        size: totalSize,
+   661→   661→        createdAt: Date.now(),
+   662→   662→        updatedAt: Date.now(),
+   663→   663→        totalPlayTimeSeconds: 0,
+   664→   664→        isFavorite: false,
+   665→   665→        compatibilityStatus: "unknown",
+   666→   666→        emulatorVersion: "v0.1.0",
+   667→   667→        fileFingerprint: fingerprint,
+   668→   668→      };
+   669→   669→
+   670→   670→      await putGame(game);
+   671→   671→      await Promise.all(fileRecords.map((f) => putGameFile(f)));
+   672→   672→      addGame(game);
+   673→   673→
+   674→   674→      updateJob({
+   675→   675→        status: "ready",
+   676→   676→        currentStep: "Import dokončený",
+   677→   677→        gameId,
+   678→   678→        processedFiles: fileRecords.length,
+   679→   679→        fileCount: fileRecords.length,
+   680→   680→      });
+   681→   681→
+   682→   682→      toast({
+   683→   683→        title: "Import dokončený",
+   684→   684→        description: `Hra "${game.name}" bola pridaná do knižnice.`,
+   685→   685→      });
+   686→   686→    },
+   687→   687→     
+   688→   688→    [currentJob, updateJob, addGame, toast]
+   689→   689→  );
+   690→   690→
+   691→   691→  /**
+   692→   692→   * Handler pre klik na tlačidlo "Pokračovať" po užívateľskej voľbe platformy.
+   693→   693→   */
+   694→   694→  const handleConfirmPlatform = useCallback(async () => {
+   695→   695→    if (!selectedPlatform) return;
+   696→   696→    try {
+   697→   697→      await finalizeImport(selectedPlatform);
+   698→   698→    } catch (e) {
+   699→   699→      const message = e instanceof Error ? e.message : String(e);
+   700→   700→      updateJob({
+   701→   701→        status: "error",
+   702→   702→        currentStep: "Import zlyhal",
+   703→   703→        error: message,
+   704→   704→      });
+   705→   705→    }
+   706→   706→  }, [selectedPlatform, finalizeImport, updateJob]);
+   707→   707→
+   708→   708→  /**
+   709→   709→   * Zrušenie importu.
+   710→   710→   */
+   711→   711→  const handleCancel = useCallback(() => {
+   712→   712→    abortRef.current?.abort();
+   713→   713→    if (workerRef.current) {
+   714→   714→      const cancelReq: ArchiveWorkerRequest = { type: "cancel" };
+   715→   715→      workerRef.current.postMessage(cancelReq);
+   716→   716→    }
+   717→   717→  }, []);
+   718→   718→
+   719→   719→  /**
+   720→   720→   * Reset wizardu — späť na začiatok.
+   721→   721→   */
+   722→   722→  const handleReset = useCallback(() => {
+   723→   723→    abortRef.current?.abort();
+   724→   724→    if (workerRef.current) {
+   725→   725→      workerRef.current.terminate();
+   726→   726→      workerRef.current = null;
+   727→   727→    }
+   728→   728→    reset();
+   729→   729→    setExtractedEntries([]);
+   730→   730→    setDetectionResult(null);
+   731→   731→    setSelectedPlatform(null);
+   732→   732→    extractedEntriesRef.current = [];
+   733→   733→    mainFileRef.current = "";
+   734→   734→    writeQueueRef.current = [];
+   735→   735→    writePromiseRef.current = null;
+   736→   736→  }, [reset]);
+   737→   737→
+   738→   738→  // === RENDER ===
+   739→   739→
+   740→   740→  // Právne potvrdenie pri prvom importe
+   741→   741→  if (!legalConfirmed) {
+   742→   742→    return (
+   743→   743→      <LegalConfirmation
+   744→   744→        checked={legalChecked}
+   745→   745→        onChange={setLegalChecked}
+   746→   746→        onConfirm={() => {
+   747→   747→          setLegalConfirmed(true);
+   748→   748→        }}
+   749→   749→      />
+   750→   750→    );
+   751→   751→  }
+   752→   752→
+   753→   753→  // Ak je job v programe (alebo dokončený), ukáž progress
+   754→   754→  if (currentJob && currentJob.status !== "idle" && currentJob.status !== "selecting") {
+   755→   755→    // Ak čaká na výber platformy, ukáž výber
+   756→   756→    if (currentJob.status === "awaiting-user-selection") {
+   757→   757→      return (
+   758→   758→        <PlatformSelection
+   759→   759→          detection={detectionResult}
+   760→   760→          selected={selectedPlatform}
+   761→   761→          onSelect={setSelectedPlatform}
+   762→   762→          onConfirm={handleConfirmPlatform}
+   763→   763→          entries={extractedEntries}
+   764→   764→          fileName={currentJob.fileName}
+   765→   765→        />
+   766→   766→      );
+   767→   767→    }
+   768→   768→
+   769→   769→    return (
+   770→   770→      <div className="space-y-4">
+   771→   771→        <ImportProgress
+   772→   772→          job={currentJob}
+   773→   773→          onCancel={handleCancel}
+   774→   774→          onDismiss={
+   775→   775→            currentJob.status === "ready" || currentJob.status === "error" || currentJob.status === "cancelled"
+   776→   776→              ? handleReset
+   777→   777→              : undefined
+   778→   778→          }
+   779→   779→        />
+   780→   780→        {currentJob.status === "ready" && (
+   781→   781→          <Card>
+   782→   782→            <CardContent className="flex flex-col items-center gap-3 p-6 text-center">
+   783→   783→              <CheckCircle2 className="size-12 text-primary" aria-hidden="true" />
+   784→   784→              <div>
+   785→   785→                <p className="font-medium">Hra bola importovaná</p>
+   786→   786→                <p className="text-sm text-muted-foreground">
+   787→   787→                  {currentJob.fileName} — {currentJob.extractedBytes} bajtov
+   788→   788→                </p>
+   789→   789→              </div>
+   790→   790→              <div className="flex flex-col gap-2 sm:flex-row">
+   791→   791→                <Button asChild variant="default" className="min-h-11">
+   792→   792→                  <Link href="/library">
+   793→   793→                    <Package className="size-4" />
+   794→   794→                    Otvoriť knižnicu
+   795→   795→                  </Link>
+   796→   796→                </Button>
+   797→   797→                <Button variant="outline" onClick={handleReset} className="min-h-11">
+   798→   798→                  <RotateCcw className="size-4" />
+   799→   799→                  Importovať ďalšiu
+   800→   800→                </Button>
+   801→   801→              </div>
+   802→   802→            </CardContent>
+   803→   803→          </Card>
+   804→   804→        )}
+   805→   805→      </div>
+   806→   806→    );
+   807→   807→  }
+   808→   808→
+   809→   809→  // Default — DropZone
+   810→   810→  return (
+   811→   811→    <div className="space-y-4">
+   812→   812→      <DropZone onFilesSelected={handleFilesSelected} />
+   813→   813→      <Card>
+   814→   814→        <CardContent className="p-4 text-xs text-muted-foreground">
+   815→   815→          <p>
+   816→   816→            <strong className="text-foreground">Tip:</strong> Pre DOS hry použite .jsdos
+   817→   817→            balík alebo ZIP s START.BAT / GAME.EXE. Pre PS1 použite .cue + .bin alebo .iso.
+   818→   818→          </p>
+   819→   819→        </CardContent>
+   820→   820→      </Card>
+   821→   821→    </div>
+   822→   822→  );
+   823→   823→}
+   824→   824→
+   825→   825→/**
+   826→   826→ * Vyberie "main file" hry z extrahovaných záznamov.
+   827→   827→ * Priorita: najväčší súbor s rozoznateľnou príponou.
+   828→   828→ */
+   829→   829→function pickMainFile(entries: ArchiveEntry[]): string {
+   830→   830→  const files = entries.filter(
+   831→   831→    (e) => !e.isDirectory && e.size > 0 && extname(e.path).length > 0
+   832→   832→  );
+   833→   833→  if (files.length === 0) return entries[0]?.path ?? "unknown";
+   834→   834→  files.sort((a, b) => b.size - a.size);
+   835→   835→  return files[0].path;
+   836→   836→}
+   837→   837→
+   838→   838→/**
+   839→   839→ * Odvodí názov hry z názvu súboru (bez prípony).
+   840→   840→ */
+   841→   841→function deriveGameName(mainFile: string): string {
+   842→   842→  const base = mainFile.split("/").pop() ?? mainFile;
+   843→   843→  const idx = base.lastIndexOf(".");
+   844→   844→  const name = idx === -1 ? base : base.slice(0, idx);
+   845→   845→  // Nahradíme podčiarkovníky a pomlčky medzerami
+   846→   846→  return name.replace(/[_-]+/g, " ").trim() || base;
+   847→   847→}
+   848→   848→
+   849→   849→// === PODKOMPONENTY ===
+   850→   850→
+   851→   851→function LegalConfirmation({
+   852→   852→  checked,
+   853→   853→  onChange,
+   854→   854→  onConfirm,
+   855→   855→}: {
+   856→   856→  checked: boolean;
+   857→   857→  onChange: (v: boolean) => void;
+   858→   858→  onConfirm: () => void;
+   859→   859→}) {
+   860→   860→  return (
+   861→   861→    <Card>
+   862→   862→      <CardHeader>
+   863→   863→        <CardTitle className="flex items-center gap-2">
+   864→   864→          <FileText className="size-5 text-primary" aria-hidden="true" />
+   865→   865→          Právne potvrdenie
+   866→   866→        </CardTitle>
+   867→   867→        <CardDescription>
+   868→   868→          Pred importom hier potvrďte, že máte právo ich používať.
+   869→   869→        </CardDescription>
+   870→   870→      </CardHeader>
+   871→   871→      <CardContent className="space-y-4">
+   872→   872→        <div className="rounded-md border border-border bg-muted/30 p-4 text-sm">
+   873→   873→          <p className="leading-relaxed">
+   874→   874→            Potvrdzujem, že nahrávam vlastnú legálne získanú záložnú kópiu hry
+   875→   875→            a mám právo tento obsah používať. RETROCLOUD slúži výhradne na
+   876→   876→            správu a prehrávanie vlastných záloh — nesprístupňuje, nedistribuuje
+   877→   877→            ani neukladá herný obsah tretích strán.
+   878→   878→          </p>
+   879→   879→        </div>
+   880→   880→        <div className="flex items-start gap-3">
+   881→   881→          <Checkbox
+   882→   882→            id="legal-confirm"
+   883→   883→            checked={checked}
+   884→   884→            onCheckedChange={(v) => onChange(v === true)}
+   885→   885→            className="mt-0.5"
+   886→   886→          />
+   887→   887→          <Label htmlFor="legal-confirm" className="text-sm leading-relaxed font-normal">
+   888→   888→            Čítal(a) som a súhlasím s právnym vyhlásením vyššie.
+   889→   889→          </Label>
+   890→   890→        </div>
+   891→   891→        <Button
+   892→   892→          onClick={onConfirm}
+   893→   893→          disabled={!checked}
+   894→   894→          className="w-full min-h-11"
+   895→   895→        >
+   896→   896→          Pokračovať
+   897→   897→        </Button>
+   898→   898→      </CardContent>
+   899→   899→    </Card>
+   900→   900→  );
+   901→   901→}
+   902→   902→
+   903→   903→function PlatformSelection({
+   904→   904→  detection,
+   905→   905→  selected,
+   906→   906→  onSelect,
+   907→   907→  onConfirm,
+   908→   908→  entries,
+   909→   909→  fileName,
+   910→   910→}: {
+   911→   911→  detection: DetectionResult | null;
+   912→   912→  selected: EmulatorPlatform | null;
+   913→   913→  onSelect: (p: EmulatorPlatform) => void;
+   914→   914→  onConfirm: () => void;
+   915→   915→  entries: ArchiveEntry[];
+   916→   916→  fileName: string;
+   917→   917→}) {
+   918→   918→  const platforms: Array<{ value: EmulatorPlatform; label: string; desc: string }> = [
+   919→   919→    { value: "dos", label: "DOS", desc: "js-dos (WASM)" },
+   920→   920→    { value: "ps1", label: "PlayStation 1", desc: "PCSX-ReARMed" },
+   921→   921→    {
+   922→   922→      value: "ps2",
+   923→   923→      label: "PlayStation 2",
+   924→   924→      desc: "Experimentálne (môže byť vypnuté)",
+   925→   925→    },
+   926→   926→  ];
+   927→   927→
+   928→   928→  return (
+   929→   929→    <Card>
+   930→   930→      <CardHeader>
+   931→   931→        <CardTitle className="flex items-center gap-2">
+   932→   932→          <Gamepad2 className="size-5 text-primary" aria-hidden="true" />
+   933→   933→          Výber platformy
+   934→   934→        </CardTitle>
+   935→   935→        <CardDescription>
+   936→   936→          Nebolo možné jednoznačne určiť platformu pre <strong>{fileName}</strong>.
+   937→   937→          Vyberte platformu manuálne.
+   938→   938→        </CardDescription>
+   939→   939→      </CardHeader>
+   940→   940→      <CardContent className="space-y-4">
+   941→   941→        {detection && detection.reasons.length > 0 && (
+   942→   942→          <div className="rounded-md border border-border bg-muted/30 p-3 text-xs">
+   943→   943→            <p className="mb-1 font-medium">Dôvody detekcie:</p>
+   944→   944→            <ul className="list-inside list-disc space-y-0.5 text-muted-foreground">
+   945→   945→              {detection.reasons.map((r, i) => (
+   946→   946→                <li key={i}>{r}</li>
+   947→   947→              ))}
+   948→   948→            </ul>
+   949→   949→          </div>
+   950→   950→        )}
+   951→   951→
+   952→   952→        <RadioGroup
+   953→   953→          value={selected ?? undefined}
+   954→   954→          onValueChange={(v) => onSelect(v as EmulatorPlatform)}
+   955→   955→        >
+   956→   956→          {platforms.map((p) => (
+   957→   957→            <div
+   958→   958→              key={p.value}
+   959→   959→              className="flex items-start gap-3 rounded-md border border-border p-3 has-[button[data-state=checked]]:border-primary has-[button[data-state=checked]]:bg-primary/5"
+   960→   960→            >
+   961→   961→              <RadioGroupItem value={p.value} id={`platform-${p.value}`} className="mt-0.5" />
+   962→   962→              <div className="flex-1">
+   963→   963→                <Label htmlFor={`platform-${p.value}`} className="font-medium">
+   964→   964→                  {p.label}
+   965→   965→                </Label>
+   966→   966→                <p className="text-xs text-muted-foreground">{p.desc}</p>
+   967→   967→              </div>
+   968→   968→            </div>
+   969→   969→          ))}
+   970→   970→        </RadioGroup>
+   971→   971→
+   972→   972→        {entries.length > 0 && (
+   973→   973→          <div>
+   974→   974→            <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+   975→   975→              Extrakované súbory ({entries.length}):
+   976→   976→            </p>
+   977→   977→            <div className="max-h-32 overflow-y-auto rounded-md border border-border bg-background/40 p-2 text-xs">
+   978→   978→              <ul className="space-y-0.5">
+   979→   979→                {entries.slice(0, 20).map((e, i) => (
+   980→   980→                  <li key={i} className="truncate text-muted-foreground">
+   981→   981→                    {e.isDirectory ? "📁 " : "📄 "}
+   982→   982→                    {e.path} {e.size > 0 && `(${(e.size / 1024).toFixed(0)} KB)`}
+   983→   983→                  </li>
+   984→   984→                ))}
+   985→   985→                {entries.length > 20 && (
+   986→   986→                  <li className="text-muted-foreground">...a ďalších {entries.length - 20}</li>
+   987→   987→                )}
+   988→   988→              </ul>
+   989→   989→            </div>
+   990→   990→          </div>
+   991→   991→        )}
+   992→   992→
+   993→   993→        <Button
+   994→   994→          onClick={onConfirm}
+   995→   995→          disabled={!selected}
+   996→   996→          className="w-full min-h-11"
+   997→   997→        >
+   998→   998→          Potvrdiť a dokončiť import
+   999→   999→        </Button>
+  1000→  1000→      </CardContent>
+  1001→  1001→    </Card>
+  1002→  1002→  );
+  1003→  1003→}
+  1004→  1004→

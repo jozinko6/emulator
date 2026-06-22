@@ -1,0 +1,55 @@
+{
+  "name": "RETROCLOUD",
+  "short_name": "RETROCLOUD",
+  "description": "Lokálne orientovaný online emulátor hier pre DOS, PlayStation 1 a PlayStation 2.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0a14",
+  "theme_color": "#0a0a14",
+  "categories": ["games", "entertainment", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Knižnica",
+      "short_name": "Knižnica",
+      "url": "/library"
+    },
+    {
+      "name": "Importovať hru",
+      "short_name": "Import",
+      "url": "/import"
+    },
+    {
+      "name": "Nastavenia",
+      "short_name": "Nastavenia",
+      "url": "/settings"
+    }
+  ]
+}

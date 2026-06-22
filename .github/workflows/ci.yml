@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  quality:
+    name: Type-check, Lint, Test, Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test -- --run
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_ENABLE_PS2: "false"
+
+      - name: Bundle size check
+        if: always()
+        run: |
+          echo "Bundle size info:"
+          du -sh .next/static 2>/dev/null || true
+
+      - name: Security audit
+        if: always()
+        run: npm audit --audit-level=high || true
