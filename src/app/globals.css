@@ -38,7 +38,7 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  /* RETROCLOUD signature */
+  /* Jaňo še chce bavkac signature */
   --color-platform-dos: var(--platform-dos);
   --color-platform-ps1: var(--platform-ps1);
   --color-platform-ps2: var(--platform-ps2);
@@ -48,12 +48,12 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* RETROCLOUD dark theme is the default.
-   Light theme is intentionally NOT provided — the app is gaming-first. */
+/* Jaňo še chce bavkac dark theme is the default.
+   Light theme is intentionally NOT provided â€” the app is gaming-first. */
 :root {
   --radius: 0.75rem;
 
-  /* Deep space background — soft retro CRT vibe */
+  /* Deep space background â€” soft retro CRT vibe */
   --background: oklch(0.14 0.018 270);
   --foreground: oklch(0.96 0.005 270);
 
@@ -63,7 +63,7 @@
   --popover: oklch(0.20 0.022 270);
   --popover-foreground: oklch(0.96 0.005 270);
 
-  /* Primary — warm amber CRT phosphor */
+  /* Primary â€” warm amber CRT phosphor */
   --primary: oklch(0.78 0.16 75);
   --primary-foreground: oklch(0.18 0.022 270);
 
@@ -73,7 +73,7 @@
   --muted: oklch(0.22 0.018 270);
   --muted-foreground: oklch(0.68 0.012 270);
 
-  /* Accent — magenta/purple neon, used sparingly */
+  /* Accent â€” magenta/purple neon, used sparingly */
   --accent: oklch(0.32 0.10 305);
   --accent-foreground: oklch(0.96 0.005 270);
 
@@ -83,9 +83,9 @@
   --input: oklch(1 0 0 / 10%);
   --ring: oklch(0.78 0.16 75 / 60%);
 
-  --chart-1: oklch(0.78 0.16 75);   /* amber — DOS */
-  --chart-2: oklch(0.65 0.20 145);  /* green — PS1 */
-  --chart-3: oklch(0.60 0.22 305);  /* magenta — PS2 */
+  --chart-1: oklch(0.78 0.16 75);   /* amber â€” DOS */
+  --chart-2: oklch(0.65 0.20 145);  /* green â€” PS1 */
+  --chart-3: oklch(0.60 0.22 305);  /* magenta â€” PS2 */
   --chart-4: oklch(0.70 0.18 200);
   --chart-5: oklch(0.65 0.22 22);
 
@@ -144,7 +144,7 @@
   }
 }
 
-/* Subtle CRT scanline overlay for emulator containers — purely decorative */
+/* Subtle CRT scanline overlay for emulator containers â€” purely decorative */
 .rc-crt::after {
   content: "";
   position: absolute;

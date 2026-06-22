@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate RETROCLOUD PWA icons (192, 512, maskable variants) as PNG via Pillow."""
+"""Generate Jaňo še chce bavkac PWA icons (192, 512, maskable variants) as PNG via Pillow."""
 from PIL import Image, ImageDraw
 from pathlib import Path
 
@@ -79,4 +79,4 @@ svg = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
 """
 (OUT / "icon.svg").write_text(svg)
 
-print("OK — icons generated in", OUT)
+print("OK â€” icons generated in", OUT)

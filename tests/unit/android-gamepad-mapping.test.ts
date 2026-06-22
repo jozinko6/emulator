@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { ANDROID_KEYCODE_TO_CONTROL, ANDROID_AXIS_TO_CONTROL } from "@/lib/native/native-gamepad";
+import {
+  ANDROID_KEYCODE_TO_CONTROL,
+  ANDROID_AXIS_TO_CONTROL,
+  mapNativeGamepadEvent,
+} from "@/lib/native/native-gamepad";
 
 describe("Android keycode to control mapping", () => {
   it("maps face buttons A/B/X/Y", () => {
@@ -59,5 +63,36 @@ describe("Android axis to control mapping", () => {
   it("maps triggers", () => {
     expect(ANDROID_AXIS_TO_CONTROL[17]).toBe("l2-axis"); // AXIS_LTRIGGER
     expect(ANDROID_AXIS_TO_CONTROL[18]).toBe("r2-axis"); // AXIS_RTRIGGER
+  });
+});
+
+describe("native gamepad event mapping", () => {
+  it("maps native keydown to emulator button-down", () => {
+    expect(mapNativeGamepadEvent({
+      type: "keydown",
+      button: "face-a",
+      source: "SOURCE_GAMEPAD",
+      timestamp: 123,
+    })).toEqual({
+      type: "button-down",
+      control: "face-a",
+      value: 1,
+      timestamp: 123,
+    });
+  });
+
+  it("maps native axis to emulator axis", () => {
+    expect(mapNativeGamepadEvent({
+      type: "axis",
+      axis: "lstick-x",
+      value: 0.5,
+      source: "SOURCE_JOYSTICK",
+      timestamp: 456,
+    })).toEqual({
+      type: "axis",
+      control: "lstick-x",
+      value: 0.5,
+      timestamp: 456,
+    });
   });
 });

@@ -37,6 +37,7 @@ export default function PlayPage({ params }: { params: Promise<{ id: string }> }
   const router = useRouter();
   const searchParams = useSearchParams();
   const loadSlot = searchParams?.get("slot");
+  const freshStart = searchParams?.get("fresh") === "1";
 
   const containerRef = useRef<HTMLDivElement>(null);
   const adapterRef = useRef<EmulatorAdapter | null>(null);
@@ -61,6 +62,7 @@ export default function PlayPage({ params }: { params: Promise<{ id: string }> }
     async function init(): Promise<(() => Promise<void>) | undefined> {
       try {
         const { getGame, getGameFiles, putPlaySession } = await import("@/lib/storage/repositories");
+        const { getLatestSaveForGame } = await import("@/lib/storage/save-state-store");
         const { isPs2Available } = await import("@/emulators/ps2/ps2-availability");
         const { createAdapter } = await import("@/emulators/core/emulator-factory");
 
@@ -125,9 +127,15 @@ export default function PlayPage({ params }: { params: Promise<{ id: string }> }
 
         // Load save state AFTER start() — per prompt section 18
         // Preferuje sa tok: initialize → loadGame → start → waitForReady → loadState
-        if (loadSlot) {
+        const saveSlotToLoad = loadSlot
+          ? parseInt(loadSlot, 10)
+          : freshStart
+            ? null
+            : (await getLatestSaveForGame(g.id))?.slot ?? null;
+
+        if (saveSlotToLoad !== null && Number.isFinite(saveSlotToLoad)) {
           try {
-            await adapter.loadState(parseInt(loadSlot, 10));
+            await adapter.loadState(saveSlotToLoad);
           } catch (e) {
             console.warn("Failed to load save state:", e);
             setError("Uloženie sa nepodarilo načítať. Hra bola spustená od začiatku.");
@@ -143,7 +151,7 @@ export default function PlayPage({ params }: { params: Promise<{ id: string }> }
           gameId: g.id,
           startedAt,
           durationSeconds: 0,
-          saveStateSlotUsed: loadSlot ? parseInt(loadSlot, 10) : undefined,
+          saveStateSlotUsed: saveSlotToLoad ?? undefined,
         });
 
         // Autosave interval (90s) — per prompt section 19
@@ -241,7 +249,7 @@ export default function PlayPage({ params }: { params: Promise<{ id: string }> }
         }
       });
     };
-  }, [id, loadSlot, setEmulatorState, setEmulatorActive, setEmulatorError, emulatorReset]);
+  }, [id, loadSlot, freshStart, setEmulatorState, setEmulatorActive, setEmulatorError, emulatorReset]);
 
   // Active gamepad + keyboard input bridges — per prompt sections 10, 11.
   // Polls navigator.getGamepads() via RAF, captures KeyboardEvent.code,

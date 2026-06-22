@@ -11,10 +11,10 @@ android {
         targetSdkVersion 34
         versionCode 1
         versionName "1.0.0"
-        // Single universal APK — no ABI splits (per prompt section 8)
+        // Single universal APK â€” no ABI splits (per prompt section 8)
     }
 
-    // Release signing config — loaded from gradle.properties (set by CI from secrets).
+    // Release signing config â€” loaded from gradle.properties (set by CI from secrets).
     // If secrets are absent, release build falls back to debug signing (unsigned release
     // would be misleading). CI uses debug builds for PRs and signed release only on tags.
     signingConfigs {
@@ -44,15 +44,11 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            // Use release signing if keystore is configured, else fall back to debug
-            // (CI uses this for tag-based releases; for PRs debug APK is built instead)
             def storeFilePath = project.findProperty("RELEASE_STORE_FILE")
             if (storeFilePath != null && file(storeFilePath).exists()) {
                 signingConfig signingConfigs.release
-            } else {
-                signingConfig signingConfigs.debug
-                // NOTE: This APK is signed with debug key — not suitable for Play Store
-                // or stable updates. Use only for testing.
+            } else if (gradle.startParameter.taskNames.any { it.toLowerCase().contains("release") }) {
+                throw new GradleException("Release signing is required. Debug signing is not allowed for release APKs.")
             }
         }
     }
@@ -66,7 +62,7 @@ android {
         jvmTarget = '17'
     }
 
-    // Bundle assets inside the APK — offline-ready
+    // Bundle assets inside the APK â€” offline-ready
     sourceSets {
         main {
             assets.srcDirs += ['src/main/assets']

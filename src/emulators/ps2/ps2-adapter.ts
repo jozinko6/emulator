@@ -1,18 +1,18 @@
 /**
- * Ps2Adapter — skeleton pre PS2 emulátor.
+ * Ps2Adapter â€” skeleton pre PS2 emulĂˇtor.
  *
  * Per prompt ETAPA 10: PS2 je za feature flagom `NEXT_PUBLIC_ENABLE_PS2=false`.
- * Tento adaptér je skeleton — NEimplementuje reálnu PS2 emuláciu, pretože
- * v tomto zostavení nie je dostupné žiadne PS2 emulačné jadro (Play!.js
- * je experimentálne a nie je súčasťou projektu).
+ * Tento adaptĂ©r je skeleton â€” NEimplementuje reĂˇlnu PS2 emulĂˇciu, pretoĹľe
+ * v tomto zostavenĂ­ nie je dostupnĂ© Ĺľiadne PS2 emulaÄŤnĂ© jadro (Play!.js
+ * je experimentĂˇlne a nie je sĂşÄŤasĹĄou projektu).
  *
- * Ak by sa v budúcnosti pridalo PS2 jadro, tento súbor by ho naozaj
- * integroval. Kým sa tak stane, každej metóde vyhadzujeme
+ * Ak by sa v budĂşcnosti pridalo PS2 jadro, tento sĂşbor by ho naozaj
+ * integroval. KĂ˝m sa tak stane, kaĹľdej metĂłde vyhadzujeme
  * `RetroCloudError(EMULATOR_CORE_UNAVAILABLE)`.
  *
- * Žiadne placeholdery — adaptér nedáva falošný dojem, že funguje.
+ * Ĺ˝iadne placeholdery â€” adaptĂ©r nedĂˇva faloĹˇnĂ˝ dojem, Ĺľe funguje.
  *
- * Komentáre v slovenčine.
+ * KomentĂˇre v slovenÄŤine.
  */
 import type {
   EmulatorAdapter,
@@ -62,7 +62,7 @@ export class Ps2Adapter implements EmulatorAdapter {
   }
 
   sendInput(_event: EmulatorInputEvent): void {
-    // Nepredstierame — ignorujeme vstupy, keďže jadro nebeží.
+    // Nepredstierame â€” ignorujeme vstupy, keÄŹĹľe jadro nebeĹľĂ­.
   }
 
   async saveState(_slot: number): Promise<StoredSaveState> {
@@ -78,11 +78,11 @@ export class Ps2Adapter implements EmulatorAdapter {
   }
 
   setVolume(_volume: number): void {
-    // Nepredstierame — ignorujeme.
+    // Nepredstierame â€” ignorujeme.
   }
 
   setMuted(_muted: boolean): void {
-    // Nepredstierame — ignorujeme.
+    // Nepredstierame â€” ignorujeme.
   }
 
   async enterFullscreen(): Promise<void> {
@@ -90,7 +90,7 @@ export class Ps2Adapter implements EmulatorAdapter {
   }
 
   async exitFullscreen(): Promise<void> {
-    // Ak sme neprešli do fullscreen, nemá zmysel exit.
+    // Ak sme nepreĹˇli do fullscreen, nemĂˇ zmysel exit.
   }
 
   getPerformanceStats(): EmulatorPerformanceStats {
@@ -107,11 +107,11 @@ export class Ps2Adapter implements EmulatorAdapter {
   }
 
   /**
-   * Vyhadzuje chybu — volané pri každej metóde, ktorá vyžaduje jadro.
+   * Vyhadzuje chybu â€” volanĂ© pri kaĹľdej metĂłde, ktorĂˇ vyĹľaduje jadro.
    *
-   * PS2 jadro nie je súčasťou tohto zostavenia, takže každý pokus o použitie
-   * končí touto chybou. Nejedná sa o placeholder — adaptér jasne deklaruje,
-   * že PS2 emulácia nie je dostupná.
+   * PS2 jadro nie je sĂşÄŤasĹĄou tohto zostavenia, takĹľe kaĹľdĂ˝ pokus o pouĹľitie
+   * konÄŤĂ­ touto chybou. NejednĂˇ sa o placeholder â€” adaptĂ©r jasne deklaruje,
+   * Ĺľe PS2 emulĂˇcia nie je dostupnĂˇ.
    */
   private fail(): never {
     const err = new RetroCloudError(
@@ -119,9 +119,9 @@ export class Ps2Adapter implements EmulatorAdapter {
       getPs2UnavailableReason(),
       {
         technicalDetail:
-          "Ps2Adapter je skeleton — NEXT_PUBLIC_ENABLE_PS2=true, ale žiadne PS2 jadro nebolo implementované.",
+          "Ps2Adapter je skeleton â€” NEXT_PUBLIC_ENABLE_PS2=true, ale Ĺľiadne PS2 jadro nebolo implementovanĂ©.",
         recoveryHint:
-          "PS2 emulácia zatiaľ nie je v RETROCLOUD podporovaná. Použite DOS alebo PS1.",
+          "PS2 emulĂˇcia zatiaÄľ nie je v Jaňo še chce bavkac podporovanĂˇ. PouĹľite DOS alebo PS1.",
       }
     );
     this._state = "error";

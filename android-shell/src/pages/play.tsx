@@ -25,6 +25,7 @@ import { useEmulatorStore } from "@/stores/emulator-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { VirtualGamepad } from "@/components/controls/virtual-gamepad";
 import { DosTouchpad } from "@/components/controls/dos-touchpad";
+import { getNativeGamepadPlugin, mapNativeGamepadEvent } from "@/lib/native/native-gamepad";
 
 /**
  * Android shell play page — uses hash routing.
@@ -44,6 +45,7 @@ export function PlayPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const freshStart = searchParams?.get("fresh") === "1";
+  const explicitSlot = searchParams?.get("slot");
 
   const containerRef = useRef<HTMLDivElement>(null);
   const adapterRef = useRef<EmulatorAdapter | null>(null);
@@ -69,7 +71,8 @@ export function PlayPage() {
 
     async function init(): Promise<(() => Promise<void>) | undefined> {
       try {
-        const { getGame, getGameFiles, putPlaySession, getSaveStates } = await import("@/lib/storage/repositories");
+        const { getGame, getGameFiles, putPlaySession } = await import("@/lib/storage/repositories");
+        const { getLatestSaveForGame } = await import("@/lib/storage/save-state-store");
         const { isPs2Available } = await import("@/emulators/ps2/ps2-availability");
         const { createAdapter } = await import("@/emulators/core/emulator-factory");
 
@@ -120,12 +123,11 @@ export function PlayPage() {
             if (!freshStart) {
               void (async () => {
                 try {
-                  const saves = await getSaveStates(g.id);
-                  const manual = saves.find((s) => s.slot === 1);
-                  const auto = saves.find((s) => s.slot === 0);
-                  const toLoad = manual ?? auto;
-                  if (toLoad) {
-                    await adapter.loadState(toLoad.slot);
+                  const slotToLoad = explicitSlot
+                    ? parseInt(explicitSlot, 10)
+                    : (await getLatestSaveForGame(g.id))?.slot ?? null;
+                  if (slotToLoad !== null && Number.isFinite(slotToLoad)) {
+                    await adapter.loadState(slotToLoad);
                   }
                 } catch (e) {
                   console.warn("Failed to load save state:", e);
@@ -250,7 +252,7 @@ export function PlayPage() {
         }
       });
     };
-  }, [id, freshStart, setEmulatorState, setEmulatorActive, setEmulatorError, emulatorReset]);
+  }, [id, freshStart, explicitSlot, setEmulatorState, setEmulatorActive, setEmulatorError, emulatorReset]);
 
   // Auto-hide controls
   useEffect(() => {
@@ -281,6 +283,35 @@ export function PlayPage() {
     document.addEventListener("fullscreenchange", handler);
     return () => document.removeEventListener("fullscreenchange", handler);
   }, []);
+
+  useEffect(() => {
+    if (loading || error || !game || !adapterRef.current) return;
+    const plugin = getNativeGamepadPlugin();
+    if (!plugin) return;
+
+    let disposed = false;
+    let listener: { remove: () => Promise<void> } | null = null;
+
+    void (async () => {
+      try {
+        await plugin.start();
+        listener = await plugin.addListener("nativeGamepadEvent", (event) => {
+          if (disposed) return;
+          const mapped = mapNativeGamepadEvent(event);
+          if (mapped) adapterRef.current?.sendInput(mapped);
+        });
+      } catch (e) {
+        console.warn("Native gamepad setup failed:", e);
+      }
+    })();
+
+    return () => {
+      disposed = true;
+      adapterRef.current?.releaseAllInputs?.();
+      void listener?.remove().catch((e) => console.warn("Native gamepad listener cleanup failed:", e));
+      void plugin.stop().catch((e) => console.warn("Native gamepad stop failed:", e));
+    };
+  }, [loading, error, game]);
 
   const handleVolume = (v: number) => {
     setVolume(v);

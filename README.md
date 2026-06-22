@@ -1,65 +1,71 @@
-# Jaňo še chce bavkac
+# Final runtime integration note
 
-> Súkromný rodinný projekt. Lokálny emulátor DOS a PlayStation hier pre PC, Android a Android TV.
+This branch completes the shared import/save/runtime integration work for the private family project Jaňo še chce bavkac. USB/SAF picks now enter the real import pipeline, loose multi-file CUE+BIN and DOS folder imports preserve relative paths, save states use deterministic slots, and web/Android Continue share the same URL contract.
+
+See FINAL_FIX_REPORT.md for verified command results and remaining environment limitations.
+
+# JaĹo Ĺˇe chce bavkac
+
+> SĂşkromnĂ˝ rodinnĂ˝ projekt. LokĂˇlny emulĂˇtor DOS a PlayStation hier pre PC, Android a Android TV.
 
 [![CI](https://github.com/jozinko6/emulator/actions/workflows/ci.yml/badge.svg)](.github/workflows/ci.yml)
 
 ## Popis projektu
 
-**Jaňo še chce bavkac** je PWA webová aplikácia + Android aplikácia, ktorá vám umožňuje hrať vaše vlastné legálne získané záložné kópie hier pre DOS a PlayStation 1 priamo v prehliadači alebo v natívnej Android aplikácii. Hry sa ukladajú lokálne do OPFS (Origin Private File System) a **nikdy sa neodosielajú na server**.
+**JaĹo Ĺˇe chce bavkac** je PWA webovĂˇ aplikĂˇcia + Android aplikĂˇcia, ktorĂˇ vĂˇm umoĹľĹuje hraĹĄ vaĹˇe vlastnĂ© legĂˇlne zĂ­skanĂ© zĂˇloĹľnĂ© kĂłpie hier pre DOS a PlayStation 1 priamo v prehliadaÄŤi alebo v natĂ­vnej Android aplikĂˇcii. Hry sa ukladajĂş lokĂˇlne do OPFS (Origin Private File System) a **nikdy sa neodosielajĂş na server**.
 
-**Priorita:** jednoduché, spoľahlivé hranie vlastných DOS a PS1 hier, ovládanie cez klávesnicu, myš a gamepad, jednoduché uloženie a pokračovanie v hre, funkčná Android/Android TV aplikácia.
+**Priorita:** jednoduchĂ©, spoÄľahlivĂ© hranie vlastnĂ˝ch DOS a PS1 hier, ovlĂˇdanie cez klĂˇvesnicu, myĹˇ a gamepad, jednoduchĂ© uloĹľenie a pokraÄŤovanie v hre, funkÄŤnĂˇ Android/Android TV aplikĂˇcia.
 
-## Čo projekt NEobsahuje
+## ÄŚo projekt NEobsahuje
 
-- Žiadne platby, reklamy, analytiku
-- Žiadnu verejnú registráciu používateľov
-- Žiadne komerčné funkcie
-- Žiadne hry, ROM, ISO, BIOS ani iný chránený obsah
-- PS2 zostáva vypnuté (`NEXT_PUBLIC_ENABLE_PS2=false`)
+- Ĺ˝iadne platby, reklamy, analytiku
+- Ĺ˝iadnu verejnĂş registrĂˇciu pouĹľĂ­vateÄľov
+- Ĺ˝iadne komerÄŤnĂ© funkcie
+- Ĺ˝iadne hry, ROM, ISO, BIOS ani inĂ˝ chrĂˇnenĂ˝ obsah
+- PS2 zostĂˇva vypnutĂ© (`NEXT_PUBLIC_ENABLE_PS2=false`)
 
-## Stav emulátorov
+## Stav emulĂˇtorov
 
-| Platforma | Stav | Poznámka |
+| Platforma | Stav | PoznĂˇmka |
 |-----------|------|----------|
-| DOS | ✅ Implementované | js-dos reálne WASM jadro (vyžaduje assety v `public/emulator-assets/js-dos/`) |
-| PS1 | ✅ Implementované | EmulatorJS / PCSX-ReARMed lokálne (vyžaduje assety v `public/emulator-assets/emulatorjs/`) |
-| PS2 | ⛔ Vypnuté | `NEXT_PUBLIC_ENABLE_PS2=false` — žiadny placeholder, ktorý by predstieral emuláciu |
+| DOS | âś… ImplementovanĂ© | js-dos reĂˇlne WASM jadro (vyĹľaduje assety v `public/emulator-assets/js-dos/`) |
+| PS1 | âś… ImplementovanĂ© | EmulatorJS / PCSX-ReARMed lokĂˇlne (vyĹľaduje assety v `public/emulator-assets/emulatorjs/`) |
+| PS2 | â›” VypnutĂ© | `NEXT_PUBLIC_ENABLE_PS2=false` â€” Ĺľiadny placeholder, ktorĂ˝ by predstieral emulĂˇciu |
 
-## Podporované zariadenia
+## PodporovanĂ© zariadenia
 
-- **PC** (Windows, Linux, macOS) — klávesnica, myš, USB/Bluetooth gamepad
-- **Android telefón a tablet** — dotyk, USB/Bluetooth gamepad
-- **Android TV / Google TV** — D-pad, gamepad
-- **PWA** — inštalovateľná do prehliadača
+- **PC** (Windows, Linux, macOS) â€” klĂˇvesnica, myĹˇ, USB/Bluetooth gamepad
+- **Android telefĂłn a tablet** â€” dotyk, USB/Bluetooth gamepad
+- **Android TV / Google TV** â€” D-pad, gamepad
+- **PWA** â€” inĹˇtalovateÄľnĂˇ do prehliadaÄŤa
 
-## Podporované formáty
+## PodporovanĂ© formĂˇty
 
-- **DOS:** `.jsdos`, ZIP obsahujúci DOS hru, `.exe`, `.com`, `.bat`, `dosbox.conf`
-- **PS1:** BIN+CUE (vrátane multi-BIN trackov), CHD, PBP, ISO
-- **Archívy:** ZIP (fflate), RAR a 7z (libarchive.js — vyžaduje worker bundle)
+- **DOS:** `.jsdos`, ZIP obsahujĂşci DOS hru, `.exe`, `.com`, `.bat`, `dosbox.conf`
+- **PS1:** BIN+CUE (vrĂˇtane multi-BIN trackov), CHD, PBP, ISO
+- **ArchĂ­vy:** ZIP (fflate), RAR a 7z (libarchive.js â€” vyĹľaduje worker bundle)
 
-## Inštalácia
+## InĹˇtalĂˇcia
 
 ### Predpoklady
 - Node.js 20+
-- npm (používame iba npm — žiadny Bun/Yarn)
+- npm (pouĹľĂ­vame iba npm â€” Ĺľiadny Bun/Yarn)
 
-### Lokálne spustenie (web)
+### LokĂˇlne spustenie (web)
 
 ```bash
-# 1. Nainštalujte závislosti
+# 1. NainĹˇtalujte zĂˇvislosti
 npm install
 
-# 2. Skopírujte .env.example a vyplňte podľa potreby
+# 2. SkopĂ­rujte .env.example a vyplĹte podÄľa potreby
 cp .env.example .env.local
 
-# 3. (Voliteľné) Stiahnite emulačné assety
+# 3. (VoliteÄľnĂ©) Stiahnite emulaÄŤnĂ© assety
 npm run setup:cores
 
-# 4. Spustite vývojový server
+# 4. Spustite vĂ˝vojovĂ˝ server
 npm run dev
-# Aplikácia bude dostupná na http://localhost:3000
+# AplikĂˇcia bude dostupnĂˇ na http://localhost:3000
 ```
 
 ### Build (web)
@@ -81,11 +87,11 @@ npx cap sync android
 # 3. Build debug APK
 npm run android:debug
 
-# 4. (Alebo) Build release APK (vyžaduje signing secrets)
+# 4. (Alebo) Build release APK (vyĹľaduje signing secrets)
 npm run android:release
 ```
 
-APK sa vytvorí v `android/app/build/outputs/apk/{debug,release}/`.
+APK sa vytvorĂ­ v `android/app/build/outputs/apk/{debug,release}/`.
 
 ## Testovanie
 
@@ -99,7 +105,7 @@ npm run typecheck
 # Lint
 npm run lint
 
-# Povinné overenie pred push-om
+# PovinnĂ© overenie pred push-om
 npm ci
 npm run typecheck
 npm run lint
@@ -113,9 +119,9 @@ npx cap sync android
 
 | Skript | Popis |
 |--------|-------|
-| `npm run dev` | Vývojový server (Next.js) |
-| `npm run build` | Produkčný build Next.js |
-| `npm run start` | Spustenie produkčného buildu |
+| `npm run dev` | VĂ˝vojovĂ˝ server (Next.js) |
+| `npm run build` | ProdukÄŤnĂ˝ build Next.js |
+| `npm run start` | Spustenie produkÄŤnĂ©ho buildu |
 | `npm run typecheck` | TypeScript kontrola |
 | `npm run lint` | ESLint |
 | `npm test` | Vitest |
@@ -123,170 +129,170 @@ npx cap sync android
 | `npm run android:sync` | Build + Capacitor sync |
 | `npm run android:debug` | Build debug APK |
 | `npm run android:release` | Build release APK |
-| `npm run setup:cores` | Stiahne open-source assety, vypíše manuálne kroky pre ostatné |
+| `npm run setup:cores` | Stiahne open-source assety, vypĂ­Ĺˇe manuĂˇlne kroky pre ostatnĂ© |
 
 ## PWA
 
-Aplikácia je plnohodnotná PWA:
+AplikĂˇcia je plnohodnotnĂˇ PWA:
 
-- Manifest s ikonami 192/512 (vrátane maskable)
+- Manifest s ikonami 192/512 (vrĂˇtane maskable)
 - Service worker pre offline shell
-- Inštalovateľná na desktop aj mobil
+- InĹˇtalovateÄľnĂˇ na desktop aj mobil
 - Respektuje safe-area insets pre iPhone
 
-Poznámka: herné súbory (ROM, ISO, BIN, CHD, BIOS) sa **necachujú** v Cache API — zostávajú v OPFS.
+PoznĂˇmka: hernĂ© sĂşbory (ROM, ISO, BIN, CHD, BIOS) sa **necachujĂş** v Cache API â€” zostĂˇvajĂş v OPFS.
 
 ## OPFS
 
-Veľké súbory sa ukladajú do Origin Private File System:
+VeÄľkĂ© sĂşbory sa ukladajĂş do Origin Private File System:
 
-- `games/<game-id>/<relative-path>` — herné súbory
-- `bios/<platform>/<filename>` — BIOS
-- `saves/<game-id>/slot-<n>.sav` — save states (slot 0=auto, 1=manual, 2=backup)
-- `saves/<game-id>/slot-<n>.png` — screenshoty save states
+- `games/<game-id>/<relative-path>` â€” hernĂ© sĂşbory
+- `bios/<platform>/<filename>` â€” BIOS
+- `saves/<game-id>/slot-<n>.sav` â€” save states (slot 0=auto, 1=manual, 2=backup)
+- `saves/<game-id>/slot-<n>.png` â€” screenshoty save states
 
-Save state ID je deterministické: `${gameId}:${slot}` — pri opakovanom uložení sa záznam aktualizuje, nevytvára sa nový.
+Save state ID je deterministickĂ©: `${gameId}:${slot}` â€” pri opakovanom uloĹľenĂ­ sa zĂˇznam aktualizuje, nevytvĂˇra sa novĂ˝.
 
 ## Save States
 
-Jednoduchý model pre rodinné používanie:
+JednoduchĂ˝ model pre rodinnĂ© pouĹľĂ­vanie:
 
-- **Auto Save** (slot 0) — periodicky (90s), pri ukončení, pri prechode na pozadie
-- **Manual Save** (slot 1) — tlačidlo „Uložiť" alebo kláves F5
-- **Backup** (slot 2) — automaticky vytvorený pred prepísaním manual/auto save
+- **Auto Save** (slot 0) â€” periodicky (90s), pri ukonÄŤenĂ­, pri prechode na pozadie
+- **Manual Save** (slot 1) â€” tlaÄŤidlo â€žUloĹľiĹĄ" alebo klĂˇves F5
+- **Backup** (slot 2) â€” automaticky vytvorenĂ˝ pred prepĂ­sanĂ­m manual/auto save
 
-**Tlačidlo Pokračovať** na detaile hry:
-1. Nájde najnovší kompatibilný manual alebo auto save
-2. Spustí hru
-3. Po štarte jadra načíta save state
-4. Ak sa načítanie nepodarí, spustí hru od začiatku s upozornením
+**TlaÄŤidlo PokraÄŤovaĹĄ** na detaile hry:
+1. NĂˇjde najnovĹˇĂ­ kompatibilnĂ˝ manual alebo auto save
+2. SpustĂ­ hru
+3. Po Ĺˇtarte jadra naÄŤĂ­ta save state
+4. Ak sa naÄŤĂ­tanie nepodarĂ­, spustĂ­ hru od zaÄŤiatku s upozornenĂ­m
 
-**Hrať od začiatku** nemaže existujúce uloženia.
+**HraĹĄ od zaÄŤiatku** nemaĹľe existujĂşce uloĹľenia.
 
-## Ovládanie
+## OvlĂˇdanie
 
 ### PC
 
-- **Klávesnica** — `KeyboardEvent.code` (fyzická pozícia klávesy nezávislá od rozloženia)
+- **KlĂˇvesnica** â€” `KeyboardEvent.code` (fyzickĂˇ pozĂ­cia klĂˇvesy nezĂˇvislĂˇ od rozloĹľenia)
   - F5 = Quick Save, F9 = Quick Load
-  - Šípky, Enter, Space, F1-F12, numerický blok, Ctrl/Alt/Shift
-- **Myš** — Pointer Lock API po kliknutí na hernú obrazovku
-  - Escape uvoľní pointer lock
-  - Relatívny pohyb, ľavé/pravé/stredné tlačidlo, koliesko
-- **Gamepad** — polling cez `requestAnimationFrame`
-  - Xbox, DualShock, DualSense, generické USB/Bluetooth gamepady
-  - Deadzone + sensitivity + invert Y (voliteľné)
-  - Vibrácie (ak sú dostupné)
-  - Pri odpojení: `releaseAllInputs()`
+  - Ĺ Ă­pky, Enter, Space, F1-F12, numerickĂ˝ blok, Ctrl/Alt/Shift
+- **MyĹˇ** â€” Pointer Lock API po kliknutĂ­ na hernĂş obrazovku
+  - Escape uvoÄľnĂ­ pointer lock
+  - RelatĂ­vny pohyb, ÄľavĂ©/pravĂ©/strednĂ© tlaÄŤidlo, koliesko
+- **Gamepad** â€” polling cez `requestAnimationFrame`
+  - Xbox, DualShock, DualSense, generickĂ© USB/Bluetooth gamepady
+  - Deadzone + sensitivity + invert Y (voliteÄľnĂ©)
+  - VibrĂˇcie (ak sĂş dostupnĂ©)
+  - Pri odpojenĂ­: `releaseAllInputs()`
 
 ### Android
 
-- **Natívny gamepad** cez `KeyEvent` + `MotionEvent` v `NativeGamepadPlugin`
-- Podpora USB OTG, Bluetooth, Android TV diaľkového ovládača
-- D-pad, A/B/X/Y, L1/R1, L2/R2, L3/R3, Start/Select, analógy
-- Vibrácie cez `Vibrator` API
+- **NatĂ­vny gamepad** cez `KeyEvent` + `MotionEvent` v `NativeGamepadPlugin`
+- Podpora USB OTG, Bluetooth, Android TV diaÄľkovĂ©ho ovlĂˇdaÄŤa
+- D-pad, A/B/X/Y, L1/R1, L2/R2, L3/R3, Start/Select, analĂłgy
+- VibrĂˇcie cez `Vibrator` API
 
 ### Android TV
 
-- Plnohodnotný Leanback launcher (`TvActivity`)
-- D-pad navigácia vo všetkých UI prvkoch
-- Gamepad ovládanie hier
-- Back tlačidlo ukončí hru / vráti späť
+- PlnohodnotnĂ˝ Leanback launcher (`TvActivity`)
+- D-pad navigĂˇcia vo vĹˇetkĂ˝ch UI prvkoch
+- Gamepad ovlĂˇdanie hier
+- Back tlaÄŤidlo ukonÄŤĂ­ hru / vrĂˇti spĂ¤ĹĄ
 
 ## USB Import
 
 ### PC
 
-- File System Access API (`showDirectoryPicker`) — primárne, zachová štruktúru
+- File System Access API (`showDirectoryPicker`) â€” primĂˇrne, zachovĂˇ ĹˇtruktĂşru
 - `<input webkitdirectory>` fallback pre Firefox/Safari
-- Aplikácia automaticky NEprehľadáva zariadenia bez súhlasu používateľa
+- AplikĂˇcia automaticky NEprehÄľadĂˇva zariadenia bez sĂşhlasu pouĹľĂ­vateÄľa
 
 ### Android
 
-- Storage Access Framework (SAF) — `ACTION_OPEN_DOCUMENT` + `ACTION_OPEN_DOCUMENT_TREE`
-- Žiadne `MANAGE_EXTERNAL_STORAGE`
+- Storage Access Framework (SAF) â€” `ACTION_OPEN_DOCUMENT` + `ACTION_OPEN_DOCUMENT_TREE`
+- Ĺ˝iadne `MANAGE_EXTERNAL_STORAGE`
 - Streaming copy z Content URI do app-specific storage (64 KB buffer, no Base64)
-- Persistable URI permissions pre opätovný prístup
+- Persistable URI permissions pre opĂ¤tovnĂ˝ prĂ­stup
 
-## Supabase (voliteľné)
+## Supabase (voliteÄľnĂ©)
 
-Aplikácia funguje bez Supabase. Ak chcete synchronizovať metadáta medzi zariadeniami:
+AplikĂˇcia funguje bez Supabase. Ak chcete synchronizovaĹĄ metadĂˇta medzi zariadeniami:
 
 1. Vytvorte projekt na https://supabase.com
-2. Spustite SQL migráciu zo `supabase/migrations/0001_initial.sql`
-3. Nastavte env premenné:
+2. Spustite SQL migrĂˇciu zo `supabase/migrations/0001_initial.sql`
+3. Nastavte env premennĂ©:
    ```
    NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
    ```
 
-Row Level Security je zapnutá na všetkých tabuľkách. Sync nikdy neobsahuje ROM, ISO, BIN, CHD, CSO, BIOS ani celé archívy.
+Row Level Security je zapnutĂˇ na vĹˇetkĂ˝ch tabuÄľkĂˇch. Sync nikdy neobsahuje ROM, ISO, BIN, CHD, CSO, BIOS ani celĂ© archĂ­vy.
 
-## Android APK distribúcia
+## Android APK distribĂşcia
 
-Na úvodnej stránke webu je sekcia „Stiahnuť aplikáciu". APK je dostupné na:
+Na Ăşvodnej strĂˇnke webu je sekcia â€žStiahnuĹĄ aplikĂˇciu". APK je dostupnĂ© na:
 
 ```
 https://github.com/jozinko6/emulator/releases/latest/download/jano-se-chce-bavkac.apk
 ```
 
-Ak APK ešte neexistuje, sekcia zobrazí „Android aplikácia sa pripravuje" — žiadny falošný download link.
+Ak APK eĹˇte neexistuje, sekcia zobrazĂ­ â€žAndroid aplikĂˇcia sa pripravuje" â€” Ĺľiadny faloĹˇnĂ˝ download link.
 
-### Podpísanie APK
+### PodpĂ­sanie APK
 
 CI podpisuje release APK pomocou GitHub Actions secrets:
 
-- `ANDROID_KEYSTORE_BASE64` — base64-encoded .keystore
-- `ANDROID_KEYSTORE_PASSWORD` — heslo k keystore
-- `ANDROID_KEY_ALIAS` — alias kľúča
-- `ANDROID_KEY_PASSWORD` — heslo k kľúču
+- `ANDROID_KEYSTORE_BASE64` â€” base64-encoded .keystore
+- `ANDROID_KEYSTORE_PASSWORD` â€” heslo k keystore
+- `ANDROID_KEY_ALIAS` â€” alias kÄľĂşÄŤa
+- `ANDROID_KEY_PASSWORD` â€” heslo k kÄľĂşÄŤu
 
-Keystore sa NEukladá do Git repozitára.
+Keystore sa NEukladĂˇ do Git repozitĂˇra.
 
-## Právne upozornenie
+## PrĂˇvne upozornenie
 
-Aplikácia **neposkytuje hry ani BIOS**. Používateľ je výlučne zodpovedný za svoje súbory. Pozrite [Právne informácie](/legal).
+AplikĂˇcia **neposkytuje hry ani BIOS**. PouĹľĂ­vateÄľ je vĂ˝luÄŤne zodpovednĂ˝ za svoje sĂşbory. Pozrite [PrĂˇvne informĂˇcie](/legal).
 
-## Licencie emulačných jadier
+## Licencie emulaÄŤnĂ˝ch jadier
 
-- [js-dos](https://github.com/caiiiycuk/js-dos) — GPL-2.0 (používateľ stiahne manuálne)
-- [EmulatorJS / PCSX-ReARMed](https://gitlab.com/EmulatorJS/EmulatorJS) — GPL-2.0 (používateľ stiahne manuálne)
-- [fflate](https://github.com/101arrowz/fflate) — MIT
-- [libarchive.js](https://github.com/nika-begiashvili/libarchive.js) — Apache-2.0
+- [js-dos](https://github.com/caiiiycuk/js-dos) â€” GPL-2.0 (pouĹľĂ­vateÄľ stiahne manuĂˇlne)
+- [EmulatorJS / PCSX-ReARMed](https://gitlab.com/EmulatorJS/EmulatorJS) â€” GPL-2.0 (pouĹľĂ­vateÄľ stiahne manuĂˇlne)
+- [fflate](https://github.com/101arrowz/fflate) â€” MIT
+- [libarchive.js](https://github.com/nika-begiashvili/libarchive.js) â€” Apache-2.0
 
-## Architektúra
+## ArchitektĂşra
 
-Pozri `plan.md`, `FIX_PLAN.md` a `IMPLEMENTATION_REPORT.md` pre detailnú architektúru.
+Pozri `plan.md`, `FIX_PLAN.md` a `IMPLEMENTATION_REPORT.md` pre detailnĂş architektĂşru.
 
-### Webová verzia
+### WebovĂˇ verzia
 
 - Next.js 16 (App Router)
 - React 19
 - TypeScript (strict)
 - Tailwind CSS 4 + shadcn/ui
 - Zustand (klientsky stav)
-- IndexedDB (metadáta)
-- OPFS (veľké súbory)
+- IndexedDB (metadĂˇta)
+- OPFS (veÄľkĂ© sĂşbory)
 
 ### Android verzia
 
 - Capacitor 8 (appId `sk.jano.bavkac`)
 - Vite + React 19 shell s hash routingom (`/#/library`, `/#/play/{id}`, ...)
-- Samostatný build od webu — NEvyžaduje Next.js server
-- 4 natívne Kotlin pluginy:
-  - `NativeFullscreenPlugin` — immersive mode, keep screen on, orientation
-  - `NativeGamepadPlugin` — KeyEvent + MotionEvent → JS eventy
-  - `NativeStoragePlugin` — streaming copy z Content URI
-  - `NativeFilePickerPlugin` — Storage Access Framework
+- SamostatnĂ˝ build od webu â€” NEvyĹľaduje Next.js server
+- 4 natĂ­vne Kotlin pluginy:
+  - `NativeFullscreenPlugin` â€” immersive mode, keep screen on, orientation
+  - `NativeGamepadPlugin` â€” KeyEvent + MotionEvent â†’ JS eventy
+  - `NativeStoragePlugin` â€” streaming copy z Content URI
+  - `NativeFilePickerPlugin` â€” Storage Access Framework
 - `BaseGameActivity` wireuje gamepad eventy do pluginu
 - `MainActivity` (LAUNCHER) pre mobily/tablety
 - `TvActivity` (LEANBACK_LAUNCHER, landscape) pre Android TV
 
-## Známe obmedzenia
+## ZnĂˇme obmedzenia
 
-- Emulačné WASM jadrá (js-dos, EmulatorJS) sa musia pridať manuálne — `npm run setup:cores` vypíše návod
+- EmulaÄŤnĂ© WASM jadrĂˇ (js-dos, EmulatorJS) sa musia pridaĹĄ manuĂˇlne â€” `npm run setup:cores` vypĂ­Ĺˇe nĂˇvod
 - libarchive.js worker bundle sa stiahne automaticky cez `npm run setup:cores`
-- PS2 je vypnuté — aktivuje sa až po reálnej integrácii Play!.js
-- Android build sa overuje v GitHub Actions, nie lokálne (sandbox nemá Android SDK)
-- EmulatorJS neposkytuje FPS event — `performance-update` posiela `fps: 0`
-- Streaming SHA-256 sa pre veľké súbory načíta do pamäte (obmedzenie Web Crypto API)
+- PS2 je vypnutĂ© â€” aktivuje sa aĹľ po reĂˇlnej integrĂˇcii Play!.js
+- Android build sa overuje v GitHub Actions, nie lokĂˇlne (sandbox nemĂˇ Android SDK)
+- EmulatorJS neposkytuje FPS event â€” `performance-update` posiela `fps: 0`
+- Streaming SHA-256 sa pre veÄľkĂ© sĂşbory naÄŤĂ­ta do pamĂ¤te (obmedzenie Web Crypto API)

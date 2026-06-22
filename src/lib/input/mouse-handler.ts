@@ -39,6 +39,9 @@ export class MouseHandler {
   private boundMouseUp: (e: MouseEvent) => void;
   private boundMouseMove: (e: MouseEvent) => void;
   private boundWheel: (e: WheelEvent) => void;
+  private boundContextMenu: (e: MouseEvent) => void;
+  private boundPointerCancel: (e: PointerEvent) => void;
+  private boundBlur: () => void;
   private boundPointerLockChange: () => void;
   private boundPointerLockError: (e: Event) => void;
 
@@ -54,6 +57,9 @@ export class MouseHandler {
     this.boundMouseUp = this.handleMouseUp.bind(this);
     this.boundMouseMove = this.handleMouseMove.bind(this);
     this.boundWheel = this.handleWheel.bind(this);
+    this.boundContextMenu = this.handleContextMenu.bind(this);
+    this.boundPointerCancel = this.handlePointerCancel.bind(this);
+    this.boundBlur = this.releaseAll.bind(this);
     this.boundPointerLockChange = this.handlePointerLockChange.bind(this);
     this.boundPointerLockError = this.handlePointerLockError.bind(this);
   }
@@ -67,6 +73,9 @@ export class MouseHandler {
     window.addEventListener("mouseup", this.boundMouseUp);
     this.target.addEventListener("mousemove", this.boundMouseMove);
     this.target.addEventListener("wheel", this.boundWheel, { passive: false });
+    this.target.addEventListener("contextmenu", this.boundContextMenu);
+    this.target.addEventListener("pointercancel", this.boundPointerCancel);
+    window.addEventListener("blur", this.boundBlur);
     document.addEventListener("pointerlockchange", this.boundPointerLockChange);
     document.addEventListener("pointerlockerror", this.boundPointerLockError);
   }
@@ -79,6 +88,9 @@ export class MouseHandler {
     window.removeEventListener("mouseup", this.boundMouseUp);
     this.target.removeEventListener("mousemove", this.boundMouseMove);
     this.target.removeEventListener("wheel", this.boundWheel);
+    this.target.removeEventListener("contextmenu", this.boundContextMenu);
+    this.target.removeEventListener("pointercancel", this.boundPointerCancel);
+    window.removeEventListener("blur", this.boundBlur);
     document.removeEventListener("pointerlockchange", this.boundPointerLockChange);
     document.removeEventListener("pointerlockerror", this.boundPointerLockError);
     this.releaseAll();
@@ -156,6 +168,16 @@ export class MouseHandler {
   private handleWheel(e: WheelEvent): void {
     e.preventDefault();
     this.adapter.pointerWheel(e.deltaX, e.deltaY);
+  }
+
+  private handleContextMenu(e: MouseEvent): void {
+    if (this.active) {
+      e.preventDefault();
+    }
+  }
+
+  private handlePointerCancel(): void {
+    this.releaseAll();
   }
 
   private handlePointerLockChange(): void {

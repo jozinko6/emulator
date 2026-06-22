@@ -45,11 +45,11 @@ export default function DiagnosticsPage() {
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={buildReport} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-            Obnoviť
+            ObnoviĹĄ
           </Button>
           <Button size="sm" onClick={handleCopy} disabled={!report}>
             {copied ? <Check className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
-            {copied ? "Skopírované" : "Kopírovať report"}
+            {copied ? "SkopĂ­rovanĂ©" : "KopĂ­rovaĹĄ report"}
           </Button>
         </div>
       </div>
@@ -65,13 +65,13 @@ export default function DiagnosticsPage() {
             <Row label="Typ zariadenia" value={report.deviceType} />
             <Row label="CPU jadra" value={String(report.cpuCores)} />
             {report.deviceMemoryGb !== undefined && (
-              <Row label="Pamäť (GB)" value={String(report.deviceMemoryGb)} />
+              <Row label="PamĂ¤ĹĄ (GB)" value={String(report.deviceMemoryGb)} />
             )}
           </Card>
 
           <Card className="p-4 space-y-2">
             <h2 className="font-display text-xs uppercase tracking-widest text-muted-foreground">
-              Prehliadač — schopnosti
+              PrehliadaÄŤ â€” schopnosti
             </h2>
             <CapabilityRow label="WebAssembly" ok={report.capabilities.webAssembly} />
             <CapabilityRow
@@ -109,17 +109,17 @@ export default function DiagnosticsPage() {
           {report.storage && (
             <Card className="p-4 space-y-2">
               <h2 className="font-display text-xs uppercase tracking-widest text-muted-foreground">
-                Úložisko
+                ĂšloĹľisko
               </h2>
               {report.storage.quota !== undefined && (
-                <Row label="Kvóta" value={formatBytes(report.storage.quota)} mono />
+                <Row label="KvĂłta" value={formatBytes(report.storage.quota)} mono />
               )}
               {report.storage.usage !== undefined && (
-                <Row label="Použité" value={formatBytes(report.storage.usage)} mono />
+                <Row label="PouĹľitĂ©" value={formatBytes(report.storage.usage)} mono />
               )}
               <Row
-                label="Perzistentné"
-                value={report.storage.persistent ? "Áno" : "Nie"}
+                label="PerzistentnĂ©"
+                value={report.storage.persistent ? "Ăno" : "Nie"}
               />
             </Card>
           )}
@@ -127,7 +127,7 @@ export default function DiagnosticsPage() {
           {report.connectedGamepads.length > 0 && (
             <Card className="p-4 space-y-2">
               <h2 className="font-display text-xs uppercase tracking-widest text-muted-foreground">
-                Pripojené ovládače ({report.connectedGamepads.length})
+                PripojenĂ© ovlĂˇdaÄŤe ({report.connectedGamepads.length})
               </h2>
               {report.connectedGamepads.map((g) => (
                 <div
@@ -136,7 +136,7 @@ export default function DiagnosticsPage() {
                 >
                   <span className="font-mono text-xs truncate">{g.id}</span>
                   <span className="text-xs text-muted-foreground ml-2 shrink-0">
-                    {g.buttons} tlačidiel, {g.axes} osí
+                    {g.buttons} tlaÄŤidiel, {g.axes} osĂ­
                   </span>
                 </div>
               ))}
@@ -146,7 +146,7 @@ export default function DiagnosticsPage() {
           {report.recentErrors.length > 0 && (
             <Card className="p-4 space-y-2">
               <h2 className="font-display text-xs uppercase tracking-widest text-muted-foreground">
-                Posledné chyby ({report.recentErrors.length})
+                PoslednĂ© chyby ({report.recentErrors.length})
               </h2>
               {report.recentErrors.map((e, i) => (
                 <div key={i} className="text-xs">
@@ -160,7 +160,7 @@ export default function DiagnosticsPage() {
           )}
 
           <p className="text-[10px] text-muted-foreground">
-            Report neobsahuje tokeny, heslá, BIOS obsah ani názvy Drive súborov.
+            Report neobsahuje tokeny, heslĂˇ, BIOS obsah ani nĂˇzvy Drive sĂşborov.
           </p>
         </>
       )}
@@ -184,7 +184,7 @@ function CapabilityRow({ label, ok }: { label: string; ok: boolean }) {
       <span
         className={`text-xs font-mono ${ok ? "text-emerald-400" : "text-destructive"}`}
       >
-        {ok ? "✓" : "✗"}
+        {ok ? "âś“" : "âś—"}
       </span>
     </div>
   );
@@ -200,7 +200,7 @@ function formatBytes(bytes: number): string {
 
 function formatReport(r: DiagnosticsReport): string {
   return [
-    `RETROCLOUD Diagnostics Report`,
+    `Jaňo še chce bavkac Diagnostics Report`,
     `Generated: ${new Date(r.collectedAt).toISOString()}`,
     ``,
     `## Environment`,

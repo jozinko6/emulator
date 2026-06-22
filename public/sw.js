@@ -1,5 +1,5 @@
-// RETROCLOUD Service Worker
-// Caches only the app shell — never ROM/ISO/BIOS/save-state API responses.
+// Jaňo še chce bavkac Service Worker
+// Caches only the app shell â€” never ROM/ISO/BIOS/save-state API responses.
 const CACHE_NAME = "retrocloud-shell-v1";
 const OFFLINE_URL = "/offline/offline.html";
 
@@ -57,7 +57,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (NEVER_CACHE_PATTERNS.some((p) => p.test(url.pathname))) return;
 
-  // Navigation requests → network-first, fallback to offline
+  // Navigation requests â†’ network-first, fallback to offline
   if (req.mode === "navigate") {
     event.respondWith(
       fetch(req)
@@ -71,7 +71,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Static assets (same-origin) → cache-first
+  // Static assets (same-origin) â†’ cache-first
   if (url.origin === self.location.origin) {
     event.respondWith(
       caches.match(req).then(

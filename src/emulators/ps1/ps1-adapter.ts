@@ -32,19 +32,17 @@ import { createEmitter, makeEvent } from "@/emulators/core/emulator-events";
 import { mapPsxButtonToEJS } from "@/emulators/core/emulator-input";
 import {
   readFile,
-  saveStatePath,
-  writeStream,
-  deleteRecursive,
 } from "@/lib/storage/opfs";
-import { sha256 } from "@/lib/security/hashing";
 import {
-  putSaveState,
-  getSaveStates,
-  deleteSaveState,
   getBiosForPlatform,
   saveStateRecordToStored,
 } from "@/lib/storage/repositories";
-import { v4 as uuid } from "uuid";
+import {
+  deleteSaveState,
+  getSaveState,
+  saveStateAtomically,
+  SLOT_AUTO,
+} from "@/lib/storage/save-state-store";
 
 /** Cesta k EmulatorJS loader skriptu v public/ priečinku. */
 const EJS_LOADER_URL = "/emulator-assets/emulatorjs/loader.js";
@@ -507,29 +505,14 @@ export class Ps1Adapter implements EmulatorAdapter {
       ? await stateResult
       : stateResult;
 
-    const opfsPath = saveStatePath(this.currentGame.id, slot);
     const buffer = new ArrayBuffer(stateData.byteLength);
     new Uint8Array(buffer).set(stateData);
-    const blob = new Blob([buffer]);
-    const stream = blob.stream() as ReadableStream<Uint8Array>;
-    await writeStream(opfsPath, stream);
-
-    const hash = await sha256(stateData);
-    const now = Date.now();
-    const saveRecord = {
-      id: uuid(),
-      gameId: this.currentGame.id,
-      slot,
-      createdAt: now,
-      updatedAt: now,
-      fileSize: stateData.byteLength,
-      opfsPath,
-      isAutoSave: false,
+    const saveRecord = await saveStateAtomically(this.currentGame.id, slot, buffer, {
       emulatorCore: EMULATOR_CORE_VERSIONS.ps1.core,
       emulatorVersion: EMULATOR_CORE_VERSIONS.ps1.version,
-      gameFingerprint: this.currentGame.files[0]?.hash ?? hash,
-    };
-    await putSaveState(saveRecord);
+      gameFingerprint: this.currentGame.files[0]?.hash ?? this.currentGame.id,
+      isAutoSave: slot === SLOT_AUTO,
+    });
     const stored = saveStateRecordToStored(saveRecord);
 
     this.emit(makeEvent("state-saved", { slot }));
@@ -543,8 +526,7 @@ export class Ps1Adapter implements EmulatorAdapter {
         "Nie je možné načítať save state — emulátor nie je pripravený."
       );
     }
-    const saves = await getSaveStates(this.currentGame.id);
-    const save = saves.find((s) => s.slot === slot);
+    const save = await getSaveState(this.currentGame.id, slot);
     if (!save) {
       throw new RetroCloudError(
         "SAVE_STATE_INCOMPATIBLE",
@@ -559,13 +541,9 @@ export class Ps1Adapter implements EmulatorAdapter {
 
   async deleteState(slot: number): Promise<void> {
     if (!this.currentGame) return;
-    const saves = await getSaveStates(this.currentGame.id);
-    const save = saves.find((s) => s.slot === slot);
+    const save = await getSaveState(this.currentGame.id, slot);
     if (!save) return;
-    await deleteSaveState(save.id);
-    await deleteRecursive(save.opfsPath).catch((e: unknown) => {
-      console.warn("[ps1-adapter] deleteRecursive(save) zlyhal:", e);
-    });
+    await deleteSaveState(this.currentGame.id, slot);
   }
 
   setVolume(volume: number): void {
@@ -710,7 +688,6 @@ export class Ps1Adapter implements EmulatorAdapter {
     this.lastFpsCheckAt = performance.now();
     const checkFps = () => {
       if (this._state !== "running") return;
-      const now = performance.now();
       // EmulatorJS neexponuje FPS — nastavíme 0 ako placeholder pre
       // perfStats; UI môže zobraziť "Performance: N/A".
       // Reálna implementácia by páchala requestAnimationFrame monitor.

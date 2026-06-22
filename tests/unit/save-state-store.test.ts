@@ -15,12 +15,42 @@ import {
 } from "@/lib/storage/save-state-store";
 
 // Mock OPFS functions to avoid real file IO in tests
+const opfsMemory = new Map<string, Uint8Array>();
+
 vi.mock("@/lib/storage/opfs", () => ({
   saveStatePath: (gameId: string, slot: number) => `saves/${gameId}/slot-${slot}.sav`,
   screenshotPath: (gameId: string, slot: number) => `saves/${gameId}/slot-${slot}.png`,
-  deleteRecursive: vi.fn(() => Promise.resolve()),
-  writeStream: vi.fn(() => Promise.resolve({ path: "mock", size: 100 })),
-  readFile: vi.fn(() => Promise.resolve(new File([], "mock"))),
+  deleteRecursive: vi.fn((path: string) => {
+    opfsMemory.delete(path);
+    return Promise.resolve();
+  }),
+  writeStream: vi.fn(async (path: string, stream: ReadableStream<Uint8Array>) => {
+    const reader = stream.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        chunks.push(value);
+        size += value.byteLength;
+      }
+    }
+    const data = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      data.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    opfsMemory.set(path, data);
+    return { path, size };
+  }),
+  readFile: vi.fn((path: string) => {
+    const data = opfsMemory.get(path) ?? new Uint8Array();
+    const buffer = new ArrayBuffer(data.byteLength);
+    new Uint8Array(buffer).set(data);
+    return Promise.resolve(new File([buffer], path));
+  }),
 }));
 
 // Mock repositories to use fake-indexeddb
@@ -41,6 +71,10 @@ vi.mock("@/lib/storage/repositories", () => ({
 vi.mock("@/lib/security/hashing", () => ({
   sha256: vi.fn(() => Promise.resolve("fake-hash")),
 }));
+
+beforeEach(() => {
+  opfsMemory.clear();
+});
 
 describe("makeSaveStateId", () => {
   it("creates deterministic ID", () => {

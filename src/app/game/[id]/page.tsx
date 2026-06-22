@@ -65,11 +65,11 @@ export default function GameDetailPage({ params }: { params: Promise<{ id: strin
     return (
       <div className="container mx-auto px-4 py-6 max-w-3xl">
         <Card className="p-6 text-center">
-          <p className="text-sm text-muted-foreground">Hra sa nenašla.</p>
+          <p className="text-sm text-muted-foreground">Hra sa nenaĹˇla.</p>
           <Button asChild variant="outline" className="mt-3">
             <Link href="/library">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Späť na knižnicu
+              SpĂ¤ĹĄ na kniĹľnicu
             </Link>
           </Button>
         </Card>
@@ -111,12 +111,14 @@ export default function GameDetailPage({ params }: { params: Promise<{ id: strin
     setGame(updated);
   };
 
+  const hasSave = saves.length > 0;
+
   return (
     <div className="container mx-auto px-4 py-6 max-w-4xl space-y-4">
       <Button asChild variant="ghost" size="sm">
         <Link href="/library">
           <ArrowLeft className="h-4 w-4 mr-1" />
-          Späť
+          SpĂ¤ĹĄ
         </Link>
       </Button>
 
@@ -138,11 +140,11 @@ export default function GameDetailPage({ params }: { params: Promise<{ id: strin
               </Badge>
               {game.isFavorite && (
                 <Badge variant="outline" className="text-amber-400 border-amber-500/30">
-                  <Heart className="h-3 w-3 mr-1" /> Obľúbené
+                  <Heart className="h-3 w-3 mr-1" /> ObÄľĂşbenĂ©
                 </Badge>
               )}
               <Badge variant="outline">
-                {game.compatibilityStatus === "unknown" ? "Neznáma kompatibilita" : game.compatibilityStatus}
+                {game.compatibilityStatus === "unknown" ? "NeznĂˇma kompatibilita" : game.compatibilityStatus}
               </Badge>
             </div>
 
@@ -153,8 +155,8 @@ export default function GameDetailPage({ params }: { params: Promise<{ id: strin
                   onChange={(e) => setNameValue(e.target.value)}
                   className="text-xl font-semibold"
                 />
-                <Button size="sm" onClick={handleRename}>Uložiť</Button>
-                <Button size="sm" variant="outline" onClick={() => setEditingName(false)}>Zrušiť</Button>
+                <Button size="sm" onClick={handleRename}>UloĹľiĹĄ</Button>
+                <Button size="sm" variant="outline" onClick={() => setEditingName(false)}>ZruĹˇiĹĄ</Button>
               </div>
             ) : (
               <h1 className="text-2xl font-semibold">{game.name}</h1>
@@ -195,36 +197,44 @@ export default function GameDetailPage({ params }: { params: Promise<{ id: strin
           <Button asChild>
             <Link href={`/play/${game.id}`}>
               <Play className="h-4 w-4 mr-2" />
-              Hrať
+              {hasSave ? "Pokračovať" : "Hrať"}
             </Link>
           </Button>
+          {hasSave && (
+            <Button asChild variant="outline">
+              <Link href={`/play/${game.id}?fresh=1`}>
+                <Play className="h-4 w-4 mr-2" />
+                Hrať od začiatku
+              </Link>
+            </Button>
+          )}
           <Button variant="outline" onClick={toggleFavorite}>
             <Heart className={`h-4 w-4 mr-2 ${game.isFavorite ? "fill-amber-400 text-amber-400" : ""}`} />
-            {game.isFavorite ? "Odstrániť z obľúbených" : "Pridať do obľúbených"}
+            {game.isFavorite ? "OdstrĂˇniĹĄ z obÄľĂşbenĂ˝ch" : "PridaĹĄ do obÄľĂşbenĂ˝ch"}
           </Button>
           <Button variant="outline" onClick={() => setEditingName(!editingName)}>
             <Pencil className="h-4 w-4 mr-2" />
-            Premenovať
+            PremenovaĹĄ
           </Button>
 
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline">
                 <Trash2 className="h-4 w-4 mr-2" />
-                Odstrániť save states
+                OdstrĂˇniĹĄ save states
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Odstrániť všetky save states?</AlertDialogTitle>
+                <AlertDialogTitle>OdstrĂˇniĹĄ vĹˇetky save states?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Táto akcia odstráni všetky uložené pozície pre túto hru. Samotná hra zostane v knižnici.
+                  TĂˇto akcia odstrĂˇni vĹˇetky uloĹľenĂ© pozĂ­cie pre tĂşto hru. SamotnĂˇ hra zostane v kniĹľnici.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Zrušiť</AlertDialogCancel>
+                <AlertDialogCancel>ZruĹˇiĹĄ</AlertDialogCancel>
                 <AlertDialogAction onClick={handleDeleteSaves}>
-                  Odstrániť
+                  OdstrĂˇniĹĄ
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -234,21 +244,21 @@ export default function GameDetailPage({ params }: { params: Promise<{ id: strin
             <AlertDialogTrigger asChild>
               <Button variant="destructive">
                 <Trash2 className="h-4 w-4 mr-2" />
-                Odstrániť hru
+                OdstrĂˇniĹĄ hru
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Odstrániť hru?</AlertDialogTitle>
+                <AlertDialogTitle>OdstrĂˇniĹĄ hru?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Táto akcia natrvalo odstráni hru, všetky jej súbory z OPFS a všetky save states.
-                  Akciu nemožno vrátiť späť.
+                  TĂˇto akcia natrvalo odstrĂˇni hru, vĹˇetky jej sĂşbory z OPFS a vĹˇetky save states.
+                  Akciu nemoĹľno vrĂˇtiĹĄ spĂ¤ĹĄ.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Zrušiť</AlertDialogCancel>
+                <AlertDialogCancel>ZruĹˇiĹĄ</AlertDialogCancel>
                 <AlertDialogAction onClick={handleDelete}>
-                  Odstrániť
+                  OdstrĂˇniĹĄ
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -264,7 +274,7 @@ export default function GameDetailPage({ params }: { params: Promise<{ id: strin
           </h2>
         </div>
         {saves.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Žiadne uložené pozície.</p>
+          <p className="text-xs text-muted-foreground">Ĺ˝iadne uloĹľenĂ© pozĂ­cie.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {saves.map((s) => (
@@ -280,7 +290,7 @@ export default function GameDetailPage({ params }: { params: Promise<{ id: strin
                     )}
                   </p>
                   <p className="text-[10px] text-muted-foreground">
-                    {new Date(s.updatedAt).toLocaleString("sk")} · {formatBytes(s.fileSize)}
+                    {new Date(s.updatedAt).toLocaleString("sk")} Â· {formatBytes(s.fileSize)}
                   </p>
                   <p className="text-[10px] text-muted-foreground">
                     {s.emulatorCore} {s.emulatorVersion}
@@ -289,7 +299,7 @@ export default function GameDetailPage({ params }: { params: Promise<{ id: strin
                 <Button asChild size="sm" variant="outline">
                   <Link href={`/play/${game.id}?slot=${s.slot}`}>
                     <Download className="h-3 w-3 mr-1" />
-                    Načítať
+                    NaÄŤĂ­taĹĄ
                   </Link>
                 </Button>
               </div>
@@ -303,8 +313,8 @@ export default function GameDetailPage({ params }: { params: Promise<{ id: strin
         <div className="flex items-start gap-2">
           <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
           <p className="text-[11px] text-muted-foreground">
-            RETROCLOUD neukladá ani neposkytuje komerčné hry. Používateľ zodpovedá za
-            vlastné súbory. Hra zostáva v lokálnom úložisku vášho zariadenia.
+            Jaňo še chce bavkac neukladĂˇ ani neposkytuje komerÄŤnĂ© hry. PouĹľĂ­vateÄľ zodpovedĂˇ za
+            vlastnĂ© sĂşbory. Hra zostĂˇva v lokĂˇlnom ĂşloĹľisku vĂˇĹˇho zariadenia.
           </p>
         </div>
       </Card>
