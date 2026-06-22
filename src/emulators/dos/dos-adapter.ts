@@ -53,6 +53,7 @@ import {
   getSaveState,
   saveStateAtomically,
   SLOT_AUTO,
+  validateSaveStateRecord,
 } from "@/lib/storage/save-state-store";
 import { extname } from "@/lib/security/path-normalizer";
 
@@ -632,9 +633,21 @@ export class DosAdapter implements EmulatorAdapter {
       );
     }
 
-    const file = await readFile(save.opfsPath);
-    const data = new Uint8Array(await file.arrayBuffer());
-    await this.ci.loadState(data);
+    const fingerprint = this.currentGame.files[0]?.hash ?? this.currentGame.id;
+    const verified = await validateSaveStateRecord(save, {
+      gameId: this.currentGame.id,
+      emulatorCore: EMULATOR_CORE_VERSIONS.dos.core,
+      emulatorVersion: EMULATOR_CORE_VERSIONS.dos.version,
+      gameFingerprint: fingerprint,
+    });
+    if (!verified.ok) {
+      throw new RetroCloudError(
+        "SAVE_STATE_INCOMPATIBLE",
+        `Save state v slote ${slot} nie je kompatibilný alebo je poškodený (${verified.reason}).`
+      );
+    }
+
+    await this.ci.loadState(verified.data);
     this.emit(makeEvent("state-loaded", { slot }));
   }
 

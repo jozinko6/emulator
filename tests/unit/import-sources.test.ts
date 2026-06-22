@@ -59,4 +59,14 @@ FILE "track2.bin" BINARY
     expect(decision.platform).toBe("dos");
     expect(decision.mainFile).toBe("RUN.BAT");
   });
+
+  it("requires explicit launcher selection for multiple non-priority DOS launchers", async () => {
+    const entries = [entry("DOOM.EXE"), entry("DOOM2.EXE")];
+    const decision = await chooseMainFile(entries, async () => "");
+
+    expect(decision.platform).toBe("dos");
+    expect(decision.requiresLauncherSelection).toBe(true);
+    expect(decision.mainFile).toBe("");
+    expect(decision.launcherCandidates).toEqual(["DOOM.EXE", "DOOM2.EXE"]);
+  });
 });

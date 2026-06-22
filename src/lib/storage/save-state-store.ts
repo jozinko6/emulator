@@ -78,27 +78,54 @@ export async function getSaveStatesForGame(
 export async function getLatestSaveForGame(
   gameId: string,
   emulatorCore?: string,
-  emulatorVersion?: string
+  emulatorVersion?: string,
+  gameFingerprint?: string
 ): Promise<SaveStateRecord | null> {
   const saves = await getSaveStatesForGame(gameId);
   if (saves.length === 0) return null;
 
-  // Filter by emulator compatibility if specified
-  const compatible = emulatorCore
-    ? saves.filter(
-        (s) =>
-          s.emulatorCore === emulatorCore &&
-          (!emulatorVersion || s.emulatorVersion === emulatorVersion)
+  const requiresCompatibility = !!emulatorCore || !!emulatorVersion || !!gameFingerprint;
+  const compatible = requiresCompatibility
+    ? saves.filter((s) =>
+        (!emulatorCore || s.emulatorCore === emulatorCore) &&
+        (!emulatorVersion || s.emulatorVersion === emulatorVersion) &&
+        (!gameFingerprint || s.gameFingerprint === gameFingerprint) &&
+        s.fileSize > 0 &&
+        !!s.stateHash
       )
     : saves;
 
-  const pool = compatible.length > 0 ? compatible : saves;
+  if (requiresCompatibility && compatible.length === 0) return null;
+  const pool = compatible;
 
   const primary = pool
     .filter((s) => s.slot === SLOT_MANUAL || s.slot === SLOT_AUTO)
     .sort((a, b) => b.updatedAt - a.updatedAt);
   if (primary[0]) return primary[0];
   return pool.find((s) => s.slot === SLOT_BACKUP) ?? pool[0] ?? null;
+}
+
+export async function validateSaveStateRecord(
+  save: SaveStateRecord,
+  opts: {
+    gameId: string;
+    emulatorCore: string;
+    emulatorVersion: string;
+    gameFingerprint: string;
+  }
+): Promise<{ ok: true; data: Uint8Array } | { ok: false; reason: string; corrupted: boolean }> {
+  if (save.gameId !== opts.gameId) return { ok: false, reason: "wrong-game", corrupted: false };
+  if (save.emulatorCore !== opts.emulatorCore) return { ok: false, reason: "wrong-core", corrupted: false };
+  if (save.emulatorVersion !== opts.emulatorVersion) return { ok: false, reason: "wrong-core-version", corrupted: false };
+  if (save.gameFingerprint !== opts.gameFingerprint) return { ok: false, reason: "wrong-game-fingerprint", corrupted: false };
+
+  const { readFile } = await import("@/lib/storage/opfs");
+  const file = await readFile(save.opfsPath);
+  if (file.size !== save.fileSize) return { ok: false, reason: "file-size-mismatch", corrupted: true };
+  const data = new Uint8Array(await file.arrayBuffer());
+  const hash = await sha256(data);
+  if (hash !== save.stateHash) return { ok: false, reason: "state-hash-mismatch", corrupted: true };
+  return { ok: true, data };
 }
 
 /**
@@ -198,6 +225,7 @@ export async function saveStateAtomically(
     createdAt: previous?.createdAt ?? now,
     updatedAt: now,
     fileSize: size,
+    stateHash: hash,
     screenshotPath: screenshotPathValue,
     note: opts.note,
     isAutoSave: opts.isAutoSave,
@@ -253,6 +281,7 @@ async function promoteToBackup(
     createdAt: source.createdAt,
     updatedAt: now,
     fileSize: source.fileSize,
+    stateHash: source.stateHash,
     screenshotPath: source.screenshotPath,
     note: `Backup of slot ${source.slot}`,
     isAutoSave: false,

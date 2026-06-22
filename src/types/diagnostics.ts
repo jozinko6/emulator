@@ -32,6 +32,18 @@ export interface DiagnosticsReport {
     usage?: number;
     persistent?: boolean;
   };
+  emulatorAssets?: {
+    jsDos: boolean;
+    emulatorJs: boolean;
+    libarchive: boolean;
+    manifest: boolean;
+  };
+  nativePlugins?: {
+    NativeGamepad: boolean;
+    NativeStorage: boolean;
+    NativeFilePicker: boolean;
+    NativeFullscreen: boolean;
+  };
   connectedGamepads: Array<{
     index: number;
     id: string;

@@ -1,6 +1,7 @@
 name: CI + Android Build
 
 on:
+  workflow_dispatch:
   push:
     branches: [main, master, fix/final-runtime-integration]
     tags: ["v*"]
@@ -26,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check text encoding
+        run: npm run check:encoding
+
       - name: Type-check
         run: npm run typecheck
 
@@ -39,7 +43,19 @@ jobs:
         run: npm run build
         env:
           NEXT_PUBLIC_ENABLE_PS2: "false"
-          NEXT_PUBLIC_APP_NAME: "Jano se chce bavkac"
+          NEXT_PUBLIC_APP_NAME: "Jaňo še chce bavkac"
+
+      - name: Prepare emulator cores
+        run: npm run setup:cores
+
+      - name: Verify emulator cores
+        run: npm run verify:cores
+
+      - name: Build Android web shell
+        run: npm run android:web
+        env:
+          NEXT_PUBLIC_ENABLE_PS2: "false"
+          NEXT_PUBLIC_APP_NAME: "Jaňo še chce bavkac"
 
   android-build:
     name: Android - Build Debug APK
@@ -68,26 +84,30 @@ jobs:
         with:
           packages: "platform-tools build-tools;34.0.0 platforms;android-34"
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: 8.7
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
 
       - name: Install web dependencies
         run: npm ci
+
+      - name: Prepare emulator cores
+        run: npm run setup:cores
+
+      - name: Verify emulator cores
+        run: npm run verify:cores
 
       - name: Build Android web shell
         run: npm run android:web
         env:
           NEXT_PUBLIC_ENABLE_PS2: "false"
-          NEXT_PUBLIC_APP_NAME: "Jano se chce bavkac"
+          NEXT_PUBLIC_APP_NAME: "Jaňo še chce bavkac"
 
       - name: Sync Capacitor project
         run: npx cap sync android
 
       - name: Build debug APK
         working-directory: android
-        run: gradle clean assembleDebug --no-daemon
+        run: ./gradlew clean assembleDebug --no-daemon
 
       - name: Verify and package debug APK
         run: |
@@ -96,6 +116,11 @@ jobs:
             echo "ERROR: No debug APK was produced by Gradle"
             exit 1
           fi
+          if [ ! -s "$APK_PATH" ]; then
+            echo "ERROR: Debug APK is empty"
+            exit 1
+          fi
+          apksigner verify --verbose "$APK_PATH"
           cp "$APK_PATH" jano-se-chce-bavkac-debug.apk
           sha256sum jano-se-chce-bavkac-debug.apk | tee jano-se-chce-bavkac-debug.apk.sha256
           ls -lh jano-se-chce-bavkac-debug.apk
@@ -137,10 +162,8 @@ jobs:
         with:
           packages: "platform-tools build-tools;34.0.0 platforms;android-34"
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: 8.7
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
 
       - name: Verify release signing secrets
         env:
@@ -161,11 +184,17 @@ jobs:
       - name: Install web dependencies
         run: npm ci
 
+      - name: Prepare emulator cores
+        run: npm run setup:cores
+
+      - name: Verify emulator cores
+        run: npm run verify:cores
+
       - name: Build Android web shell
         run: npm run android:web
         env:
           NEXT_PUBLIC_ENABLE_PS2: "false"
-          NEXT_PUBLIC_APP_NAME: "Jano se chce bavkac"
+          NEXT_PUBLIC_APP_NAME: "Jaňo še chce bavkac"
 
       - name: Sync Capacitor project
         run: npx cap sync android
@@ -181,7 +210,7 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          cat > android/gradle.properties << EOF
+          cat >> android/gradle.properties << EOF
           RELEASE_STORE_FILE=../release.keystore
           RELEASE_STORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD
           RELEASE_KEY_ALIAS=$ANDROID_KEY_ALIAS
@@ -190,7 +219,7 @@ jobs:
 
       - name: Build release APK
         working-directory: android
-        run: gradle assembleRelease --no-daemon
+        run: ./gradlew assembleRelease --no-daemon
 
       - name: Verify signature and compute SHA-256
         id: sha

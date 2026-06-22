@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * ImportWizard â€” hlavnĂ˝ stavovĂ˝ automat pre import hier.
+ * ImportWizard - hlavnĂ˝ stavovĂ˝ automat pre import hier.
  *
  * Per prompt sekcia ETAPA 3. Stavy:
- *   idle â†’ selecting â†’ reading â†’ validating â†’ extracting â†’ detecting
- *        â†’ awaiting-user-selection (ak requiresUserSelection)
- *        â†’ storing â†’ ready / error / cancelled
+ *   idle -> selecting -> reading -> validating -> extracting -> detecting
+ *        -> awaiting-user-selection (ak requiresUserSelection)
+ *        -> storing -> ready / error / cancelled
  *
  * PouĹľĂ­va `useImportStore` zo `src/stores/import-store.ts`.
  * Pri prvom importe zobrazuje prĂˇvne potvrdenie.
@@ -106,7 +106,7 @@ function toWebViewFileUrl(url: string): string {
 }
 
 export interface ImportWizardProps {
-  /** VolĂˇ sa po ĂşspeĹˇnom importe s ID vytvorenej hry. */
+  /** VolĂˇ sa po Ăşspe?nom importe s ID vytvorenej hry. */
   onComplete?: (gameId: string) => void;
   onOpenLibrary?: () => void;
   sourceEntries?: ImportSourceEntry[] | null;
@@ -127,6 +127,8 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
   // LokĂˇlny stav
   const [legalChecked, setLegalChecked] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<EmulatorPlatform | null>(null);
+  const [selectedLauncher, setSelectedLauncher] = useState<string>("");
+  const [launcherCandidates, setLauncherCandidates] = useState<string[]>([]);
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
   const [extractedEntries, setExtractedEntries] = useState<ArchiveEntry[]>([]);
 
@@ -166,6 +168,8 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
     setExtractedEntries([]);
     setDetectionResult(null);
     setSelectedPlatform(null);
+    setSelectedLauncher("");
+    setLauncherCandidates([]);
     extractedEntriesRef.current = [];
     mainFileRef.current = "";
     writeQueueRef.current = [];
@@ -210,7 +214,7 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
       let writtenTotal = 0;
       const archiveEntries: ArchiveEntry[] = [];
       for (const entry of entries) {
-        if (abort.signal.aborted) throw new RetroCloudError("UNKNOWN_ERROR", "Import bol zruĹˇenĂ˝.");
+        if (abort.signal.aborted) throw new RetroCloudError("UNKNOWN_ERROR", "Import bol zru?enĂ˝.");
 
         const target = gameFilePath(gameId, entry.relativePath);
         if (entry.file) {
@@ -262,6 +266,16 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
       };
       setDetectionResult(detection);
 
+      if (decision.requiresLauncherSelection) {
+        setLauncherCandidates(decision.launcherCandidates);
+        setSelectedLauncher(decision.launcherCandidates[0] ?? "");
+        updateJob({
+          status: "awaiting-user-selection",
+          currentStep: "Vyberte spúšťací súbor hry",
+        });
+        return;
+      }
+
       if (!decision.platform) {
         updateJob({
           status: "awaiting-user-selection",
@@ -290,7 +304,7 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
   }
 
   /**
-   * ZaÄŤne import â€” volĂˇ sa z DropZone po vĂ˝bere sĂşborov.
+   * ZaÄŤne import - volĂˇ sa z DropZone po vĂ˝bere sĂşborov.
    * Spracuje len prvĂ˝ sĂşbor (ostatnĂ© preskoÄŤĂ­ s upozornenĂ­m).
    */
   const handleFilesSelected = useCallback(
@@ -328,6 +342,8 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
       setExtractedEntries([]);
       setDetectionResult(null);
       setSelectedPlatform(null);
+      setSelectedLauncher("");
+      setLauncherCandidates([]);
       extractedEntriesRef.current = [];
       mainFileRef.current = "";
       writeQueueRef.current = [];
@@ -341,7 +357,7 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
   );
 
   /**
-   * HlavnĂˇ pipeline â€” spĂşĹˇĹĄa jednotlivĂ© fĂˇzy importu.
+   * HlavnĂˇ pipeline - spĂş?ĹĄa jednotlivĂ© fĂˇzy importu.
    * Je izolovanĂˇ do jednej async funkcie kvĂ´li ÄŤitateÄľnosti.
    */
   const runPipeline = useCallback(
@@ -363,8 +379,8 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
           // === VALIDATING ===
           updateJob({ status: "validating", currentStep: "ValidĂˇcia archĂ­vu..." });
 
-          // Pre ZIP potrebujeme Uint8Array â€” ak je sĂşbor veÄľkĂ˝, varujeme.
-          // Pre RAR/7z poĹˇleme File priamo do workera.
+          // Pre ZIP potrebujeme Uint8Array - ak je sĂşbor veÄľkĂ˝, varujeme.
+          // Pre RAR/7z po?leme File priamo do workera.
           const workerPayload: File | ArrayBuffer =
             format === "zip"
               ? await file.arrayBuffer()
@@ -405,14 +421,14 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
                 ...unsafePaths.slice(0, 50).map((p) => `NebezpeÄŤnĂˇ cesta: ${p}`),
               ],
             });
-            // Filtrujeme von nebezpeÄŤnĂ© cesty â€” pouĹľĂ­vateÄľovi uĹľ boli
+            // Filtrujeme von nebezpeÄŤnĂ© cesty - pouĹľĂ­vateÄľovi uĹľ boli
             // ohlĂˇsenĂ© v `unsafePaths` zozname, takĹľe ich len ticho vynechĂˇme.
             entries = entries.filter((e) => {
               try {
                 normalizePath(e.path);
                 return true;
               } catch (err) {
-                // NebezpeÄŤnĂˇ cesta â€” uĹľ zaradenĂˇ v warnings, preskakujeme.
+                // NebezpeÄŤnĂˇ cesta - uĹľ zaradenĂˇ v warnings, preskakujeme.
                 console.debug("[import] vynechĂˇvam nebezpeÄŤnĂş cestu:", e.path, err);
                 return false;
               }
@@ -427,11 +443,11 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
             totalBytes: summary.totalUncompressedSize,
           });
 
-          // Worker uĹľ rozbalil a poslal entries â€” writes uĹľ prebehli v runArchiveWorker.
+          // Worker uĹľ rozbalil a poslal entries - writes uĹľ prebehli v runArchiveWorker.
           extractedEntriesRef.current = entries;
           setExtractedEntries(entries);
         } else {
-          // VoÄľnĂ˝ sĂşbor â€” Ĺľiadny archĂ­v na rozbalenie
+          // VoÄľnĂ˝ sĂşbor - Ĺľiadny archĂ­v na rozbalenie
           updateJob({
             status: "validating",
             currentStep: "Kontrola sĂşboru...",
@@ -440,11 +456,11 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
           });
 
           if (isStreamRequired(file.size)) {
-            // VeÄľkĂ˝ sĂşbor â€” streamujeme priamo v "storing" fĂˇze
+            // VeÄľkĂ˝ sĂşbor - streamujeme priamo v "storing" fĂˇze
             updateJob({
               warnings: [
                 ...(currentJob?.warnings ?? []),
-                `SĂşbor je vĂ¤ÄŤĹˇĂ­ ako 256 MB (${(file.size / 1024 / 1024).toFixed(0)} MB) â€” bude sa streamovaĹĄ.`,
+                `SĂşbor je vĂ¤ÄŤ?Ă­ ako 256 MB (${(file.size / 1024 / 1024).toFixed(0)} MB) - bude sa streamovaĹĄ.`,
               ],
             });
           }
@@ -497,7 +513,7 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
           currentStep: "Detekcia platformy...",
         });
 
-        // Pre CUE sĂşbory â€” preÄŤĂ­taj obsah z OPFS
+        // Pre CUE sĂşbory - preÄŤĂ­taj obsah z OPFS
         let cueContent: string | undefined;
         if (mainFile.toLowerCase().endsWith(".cue")) {
           try {
@@ -508,7 +524,7 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
           }
         }
 
-        // Pre nezĂˇkladnĂ© sĂşbory â€” preÄŤĂ­taj hlaviÄŤku (prvĂ˝ch ~33 KB pre ISO detekciu)
+        // Pre nezĂˇkladnĂ© sĂşbory - preÄŤĂ­taj hlaviÄŤku (prvĂ˝ch ~33 KB pre ISO detekciu)
         let fileHeader: Uint8Array | undefined;
         const mainFileLower = mainFile.toLowerCase();
         if (
@@ -548,7 +564,7 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
             status: "awaiting-user-selection",
             currentStep: "Vyberte platformu hry",
           });
-          // Tu sa pipeline pozastavĂ­ â€” pokraÄŤuje sa aĹľ po kliknutĂ­ na tlaÄŤidlo
+          // Tu sa pipeline pozastavĂ­ - pokraÄŤuje sa aĹľ po kliknutĂ­ na tlaÄŤidlo
           return;
         }
 
@@ -560,11 +576,11 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
         if (abort.signal.aborted) {
           updateJob({
             status: "cancelled",
-            currentStep: "Import bol zruĹˇenĂ˝",
+            currentStep: "Import bol zru?enĂ˝",
           });
           // Cleanup OPFS
           await cleanupPartialImport(gameId).catch((cleanupErr: unknown) => {
-            console.warn("[import] cleanupPartialImport po zruĹˇenĂ­ zlyhal:", cleanupErr);
+            console.warn("[import] cleanupPartialImport po zru?enĂ­ zlyhal:", cleanupErr);
           });
           return;
         }
@@ -646,7 +662,7 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
               break;
             }
             case "warning": {
-              const warning = `${msg.path} â€” ${msg.reason}`;
+              const warning = `${msg.path} - ${msg.reason}`;
               updateJob({
                 warnings: [...(useImportStore.getState().currentJob?.warnings ?? []), warning],
               });
@@ -691,7 +707,7 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
               break;
             }
             case "cancelled": {
-              finish(new RetroCloudError("UNKNOWN_ERROR", "RozbaÄľovanie zruĹˇenĂ©."));
+              finish(new RetroCloudError("UNKNOWN_ERROR", "RozbaÄľovanie zru?enĂ©."));
               break;
             }
             case "error": {
@@ -704,15 +720,15 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
               break;
             }
             case "entries":
-              // Ignorujeme â€” pouĹľĂ­vame entry sprĂˇvy
+              // Ignorujeme - pouĹľĂ­vame entry sprĂˇvy
               break;
             default:
-              // NeznĂˇma sprĂˇva â€” ignorujeme
+              // NeznĂˇma sprĂˇva - ignorujeme
               break;
           }
         };
 
-        // PoĹˇleme extract poĹľiadavku
+        // Po?leme extract poĹľiadavku
         const request: ArchiveWorkerRequest = {
           type: "extract",
           format,
@@ -739,8 +755,8 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
   );
 
   /**
-   * Postupne zapĂ­Ĺˇe frontu extrahovanĂ˝ch zĂˇznamov do OPFS.
-   * SĂ©riovo â€” aby sme nezaĹĄaĹľili OPFS paralelnĂ˝mi zĂˇpismi.
+   * Postupne zapĂ­?e frontu extrahovanĂ˝ch zĂˇznamov do OPFS.
+   * SĂ©riovo - aby sme nezaĹĄaĹľili OPFS paralelnĂ˝mi zĂˇpismi.
    */
   const flushWriteQueue = useCallback(
     async (
@@ -751,12 +767,12 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
       let written = 0;
       while (writeQueueRef.current.length > 0) {
         if (signal.aborted) {
-          throw new RetroCloudError("UNKNOWN_ERROR", "ZĂˇpis zruĹˇenĂ˝.");
+          throw new RetroCloudError("UNKNOWN_ERROR", "ZĂˇpis zru?enĂ˝.");
         }
         const item = writeQueueRef.current.shift()!;
         const opfsPath = gameFilePath(gameId, item.path);
         // KopĂ­rujeme dĂˇta do ÄŤistĂ©ho ArrayBufferu, aby sme vyhli TS problĂ©mom
-        // s Uint8Array<ArrayBufferLike> v Blob konĹˇtruktore.
+        // s Uint8Array<ArrayBufferLike> v Blob kon?truktore.
         const buffer = new ArrayBuffer(item.data.byteLength);
         new Uint8Array(buffer).set(item.data);
         const blob = new Blob([buffer]);
@@ -773,7 +789,7 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
   /**
    * SpustĂ­ detection worker s reĂˇlnou detekciou (ETAPA 4).
    *
-   * Posiela `DetectionInput` so vĹˇetkĂ˝mi dostupnĂ˝mi signĂˇlmi:
+   * Posiela `DetectionInput` so v?etkĂ˝mi dostupnĂ˝mi signĂˇlmi:
    *  - fileName + fileSize (vĹľdy)
    *  - siblingFiles (pre DOS launcher detekciu z ZIP)
    *  - cueContent (ak mainFile je .cue)
@@ -794,7 +810,7 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
             if (msg.result) {
               resolve(msg.result);
             } else {
-              reject(new Error("Detekcia zlyhala â€” prĂˇzdny vĂ˝sledok"));
+              reject(new Error("Detekcia zlyhala - prĂˇzdny vĂ˝sledok"));
             }
           } else if (msg.type === "error") {
             worker.terminate();
@@ -805,7 +821,7 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
           worker.terminate();
           reject(new Error(`Worker error: ${e.message}`));
         };
-        // PoĹˇleme priamo DetectionRequest (worker oÄŤakĂˇva {id, input})
+        // Po?leme priamo DetectionRequest (worker oÄŤakĂˇva {id, input})
         worker.postMessage({
           id,
           input,
@@ -816,7 +832,7 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
   );
 
   /**
-   * Finalizuje import â€” uloĹľĂ­ GameRecord + GameFileRecords do IndexedDB.
+   * Finalizuje import - uloĹľĂ­ GameRecord + GameFileRecords do IndexedDB.
    */
   const finalizeImport = useCallback(
     async (platform: EmulatorPlatform) => {
@@ -830,7 +846,7 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
         currentStep: "Ukladanie metadĂˇt...",
       });
 
-      // Pre voÄľnĂ© sĂşbory sme uĹľ streamovali â€” pre archĂ­vy sme streamovali poÄŤas extrakcie.
+      // Pre voÄľnĂ© sĂşbory sme uĹľ streamovali - pre archĂ­vy sme streamovali poÄŤas extrakcie.
       // Tu len uloĹľĂ­me metadĂˇta.
 
       // VytvorĂ­me GameFileRecord pre kaĹľdĂ˝ extrahovanĂ˝ sĂşbor
@@ -891,7 +907,7 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
         description: `Hra "${game.name}" bola pridanĂˇ do kniĹľnice.`,
       });
 
-      // Notifikuj parent komponent o ĂşspeĹˇnom importe
+      // Notifikuj parent komponent o Ăşspe?nom importe
       onComplete?.(gameId);
     },
      
@@ -915,8 +931,23 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
     }
   }, [selectedPlatform, finalizeImport, updateJob]);
 
+  const handleConfirmLauncher = useCallback(async () => {
+    if (!selectedLauncher) return;
+    mainFileRef.current = selectedLauncher;
+    try {
+      await finalizeImport("dos");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      updateJob({
+        status: "error",
+        currentStep: "Import zlyhal",
+        error: message,
+      });
+    }
+  }, [selectedLauncher, finalizeImport, updateJob]);
+
   /**
-   * ZruĹˇenie importu.
+   * Zru?enie importu.
    */
   const handleCancel = useCallback(() => {
     abortRef.current?.abort();
@@ -927,7 +958,7 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
   }, []);
 
   /**
-   * Reset wizardu â€” spĂ¤ĹĄ na zaÄŤiatok.
+   * Reset wizardu - spĂ¤ĹĄ na zaÄŤiatok.
    */
   const handleReset = useCallback(() => {
     abortRef.current?.abort();
@@ -939,6 +970,8 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
     setExtractedEntries([]);
     setDetectionResult(null);
     setSelectedPlatform(null);
+    setSelectedLauncher("");
+    setLauncherCandidates([]);
     extractedEntriesRef.current = [];
     mainFileRef.current = "";
     writeQueueRef.current = [];
@@ -964,6 +997,17 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
   if (currentJob && currentJob.status !== "idle" && currentJob.status !== "selecting") {
     // Ak ÄŤakĂˇ na vĂ˝ber platformy, ukĂˇĹľ vĂ˝ber
     if (currentJob.status === "awaiting-user-selection") {
+      if (launcherCandidates.length > 0) {
+        return (
+          <LauncherSelection
+            candidates={launcherCandidates}
+            selected={selectedLauncher}
+            onSelect={setSelectedLauncher}
+            onConfirm={handleConfirmLauncher}
+            fileName={currentJob.fileName}
+          />
+        );
+      }
       return (
         <PlatformSelection
           detection={detectionResult}
@@ -994,7 +1038,7 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
               <div>
                 <p className="font-medium">Hra bola importovanĂˇ</p>
                 <p className="text-sm text-muted-foreground">
-                  {currentJob.fileName} â€” {currentJob.extractedBytes} bajtov
+                  {currentJob.fileName} - {currentJob.extractedBytes} bajtov
                 </p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
@@ -1004,7 +1048,7 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
                 </Button>
                 <Button variant="outline" onClick={handleReset} className="min-h-11">
                   <RotateCcw className="size-4" />
-                  ImportovaĹĄ ÄŹalĹˇiu
+                  ImportovaĹĄ ÄŹal?iu
                 </Button>
               </div>
             </CardContent>
@@ -1014,7 +1058,7 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
     );
   }
 
-  // Default â€” DropZone
+  // Default - DropZone
   return (
     <div className="space-y-4">
       <DropZone onFilesSelected={handleFilesSelected} />
@@ -1032,7 +1076,7 @@ export function ImportWizard({ onComplete, onOpenLibrary, sourceEntries }: Impor
 
 /**
  * Vyberie "main file" hry z extrahovanĂ˝ch zĂˇznamov.
- * Priorita: najvĂ¤ÄŤĹˇĂ­ sĂşbor s rozoznateÄľnou prĂ­ponou.
+ * Priorita: najvĂ¤ÄŤ?Ă­ sĂşbor s rozoznateÄľnou prĂ­ponou.
  */
 function pickMainFile(entries: ArchiveEntry[]): string {
   const files = entries.filter(
@@ -1081,7 +1125,7 @@ function LegalConfirmation({
           <p className="leading-relaxed">
             Potvrdzujem, Ĺľe nahrĂˇvam vlastnĂş legĂˇlne zĂ­skanĂş zĂˇloĹľnĂş kĂłpiu hry
             a mĂˇm prĂˇvo tento obsah pouĹľĂ­vaĹĄ. Jaňo še chce bavkac slĂşĹľi vĂ˝hradne na
-            sprĂˇvu a prehrĂˇvanie vlastnĂ˝ch zĂˇloh â€” nesprĂ­stupĹuje, nedistribuuje
+            sprĂˇvu a prehrĂˇvanie vlastnĂ˝ch zĂˇloh - nesprĂ­stupĹuje, nedistribuuje
             ani neukladĂˇ hernĂ˝ obsah tretĂ­ch strĂˇn.
           </p>
         </div>
@@ -1093,7 +1137,7 @@ function LegalConfirmation({
             className="mt-0.5"
           />
           <Label htmlFor="legal-confirm" className="text-sm leading-relaxed font-normal">
-            ÄŚĂ­tal(a) som a sĂşhlasĂ­m s prĂˇvnym vyhlĂˇsenĂ­m vyĹˇĹˇie.
+            ÄŚĂ­tal(a) som a sĂşhlasĂ­m s prĂˇvnym vyhlĂˇsenĂ­m vy??ie.
           </Label>
         </div>
         <Button
@@ -1102,6 +1146,56 @@ function LegalConfirmation({
           className="w-full min-h-11"
         >
           PokraÄŤovaĹĄ
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function LauncherSelection({
+  candidates,
+  selected,
+  onSelect,
+  onConfirm,
+  fileName,
+}: {
+  candidates: string[];
+  selected: string;
+  onSelect: (path: string) => void;
+  onConfirm: () => void;
+  fileName: string;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Gamepad2 className="size-5 text-primary" aria-hidden="true" />
+          Ktorý súbor spúšťa hru?
+        </CardTitle>
+        <CardDescription>
+          V balíku <strong>{fileName}</strong> je viac spustiteľných DOS súborov.
+          Vyberte ten, ktorým sa má hra štartovať.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <RadioGroup value={selected} onValueChange={onSelect}>
+          {candidates.map((candidate) => (
+            <div
+              key={candidate}
+              className="flex items-start gap-3 rounded-md border border-border p-3 has-[button[data-state=checked]]:border-primary has-[button[data-state=checked]]:bg-primary/5"
+            >
+              <RadioGroupItem value={candidate} id={`launcher-${candidate}`} className="mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <Label htmlFor={`launcher-${candidate}`} className="font-medium">
+                  {candidate.split("/").pop() ?? candidate}
+                </Label>
+                <p className="truncate text-xs text-muted-foreground">{candidate}</p>
+              </div>
+            </div>
+          ))}
+        </RadioGroup>
+        <Button onClick={onConfirm} disabled={!selected} className="w-full min-h-11">
+          Potvrdiť a dokončiť import
         </Button>
       </CardContent>
     </Card>
@@ -1191,7 +1285,7 @@ function PlatformSelection({
                   </li>
                 ))}
                 {entries.length > 20 && (
-                  <li className="text-muted-foreground">...a ÄŹalĹˇĂ­ch {entries.length - 20}</li>
+                  <li className="text-muted-foreground">...a ÄŹal?Ă­ch {entries.length - 20}</li>
                 )}
               </ul>
             </div>

@@ -42,6 +42,7 @@ import {
   getSaveState,
   saveStateAtomically,
   SLOT_AUTO,
+  validateSaveStateRecord,
 } from "@/lib/storage/save-state-store";
 
 /** Cesta k EmulatorJS loader skriptu v public/ priečinku. */
@@ -533,9 +534,20 @@ export class Ps1Adapter implements EmulatorAdapter {
         `Save state v slote ${slot} neexistuje.`
       );
     }
-    const file = await readFile(save.opfsPath);
-    const data = new Uint8Array(await file.arrayBuffer());
-    await Promise.resolve(window.EJS_emulator.loadSaveState(data, slot));
+    const fingerprint = this.currentGame.files[0]?.hash ?? this.currentGame.id;
+    const verified = await validateSaveStateRecord(save, {
+      gameId: this.currentGame.id,
+      emulatorCore: EMULATOR_CORE_VERSIONS.ps1.core,
+      emulatorVersion: EMULATOR_CORE_VERSIONS.ps1.version,
+      gameFingerprint: fingerprint,
+    });
+    if (!verified.ok) {
+      throw new RetroCloudError(
+        "SAVE_STATE_INCOMPATIBLE",
+        `Save state v slote ${slot} nie je kompatibilný alebo je poškodený (${verified.reason}).`
+      );
+    }
+    await Promise.resolve(window.EJS_emulator.loadSaveState(verified.data, slot));
     this.emit(makeEvent("state-loaded", { slot }));
   }
 

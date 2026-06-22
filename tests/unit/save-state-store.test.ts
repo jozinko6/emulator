@@ -8,6 +8,7 @@ import {
   getSaveState,
   getSaveStatesForGame,
   getLatestSaveForGame,
+  validateSaveStateRecord,
   saveStateAtomically,
   deleteSaveState,
   deleteAllSaveStatesForGame,
@@ -136,6 +137,7 @@ describe("saveStateAtomically", () => {
     expect(record.gameId).toBe("game-1");
     expect(record.slot).toBe(SLOT_MANUAL);
     expect(record.fileSize).toBe(100);
+    expect(record.stateHash).toBe("fake-hash");
     expect(record.emulatorCore).toBe("jsdos");
     expect(record.emulatorVersion).toBe("v8.00");
     expect(record.gameFingerprint).toBe("fp-1");
@@ -256,6 +258,36 @@ describe("Latest save decision logic", () => {
     const latest = await getLatestSaveForGame("game-fallback");
     expect(latest).not.toBeNull();
     expect(latest?.slot).toBe(SLOT_AUTO);
+  });
+
+  it("returns null when compatibility metadata does not match", async () => {
+    await saveStateAtomically("game-incompat", SLOT_MANUAL, new ArrayBuffer(50), {
+      emulatorCore: "jsdos",
+      emulatorVersion: "v8.00",
+      gameFingerprint: "fp",
+      isAutoSave: false,
+    });
+
+    const latest = await getLatestSaveForGame("game-incompat", "pcsx", "v1", "different");
+    expect(latest).toBeNull();
+  });
+
+  it("validates save state hash and size before load", async () => {
+    const record = await saveStateAtomically("game-verify", SLOT_MANUAL, new ArrayBuffer(50), {
+      emulatorCore: "jsdos",
+      emulatorVersion: "v8.00",
+      gameFingerprint: "fp",
+      isAutoSave: false,
+    });
+
+    const result = await validateSaveStateRecord(record, {
+      gameId: "game-verify",
+      emulatorCore: "jsdos",
+      emulatorVersion: "v8.00",
+      gameFingerprint: "fp",
+    });
+
+    expect(result.ok).toBe(true);
   });
 });
 

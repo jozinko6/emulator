@@ -38,6 +38,7 @@ export interface SaveStateRecord {
   createdAt: number;
   updatedAt: number;
   fileSize: number;
+  stateHash: string;
   screenshotPath?: string;
   note?: string;
   isAutoSave: boolean;

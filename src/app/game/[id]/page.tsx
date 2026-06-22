@@ -65,7 +65,7 @@ export default function GameDetailPage({ params }: { params: Promise<{ id: strin
     return (
       <div className="container mx-auto px-4 py-6 max-w-3xl">
         <Card className="p-6 text-center">
-          <p className="text-sm text-muted-foreground">Hra sa nenaĹˇla.</p>
+          <p className="text-sm text-muted-foreground">Hra sa nena?la.</p>
           <Button asChild variant="outline" className="mt-3">
             <Link href="/library">
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -156,7 +156,7 @@ export default function GameDetailPage({ params }: { params: Promise<{ id: strin
                   className="text-xl font-semibold"
                 />
                 <Button size="sm" onClick={handleRename}>UloĹľiĹĄ</Button>
-                <Button size="sm" variant="outline" onClick={() => setEditingName(false)}>ZruĹˇiĹĄ</Button>
+                <Button size="sm" variant="outline" onClick={() => setEditingName(false)}>Zru?iĹĄ</Button>
               </div>
             ) : (
               <h1 className="text-2xl font-semibold">{game.name}</h1>
@@ -226,13 +226,13 @@ export default function GameDetailPage({ params }: { params: Promise<{ id: strin
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>OdstrĂˇniĹĄ vĹˇetky save states?</AlertDialogTitle>
+                <AlertDialogTitle>OdstrĂˇniĹĄ v?etky save states?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  TĂˇto akcia odstrĂˇni vĹˇetky uloĹľenĂ© pozĂ­cie pre tĂşto hru. SamotnĂˇ hra zostane v kniĹľnici.
+                  TĂˇto akcia odstrĂˇni v?etky uloĹľenĂ© pozĂ­cie pre tĂşto hru. SamotnĂˇ hra zostane v kniĹľnici.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>ZruĹˇiĹĄ</AlertDialogCancel>
+                <AlertDialogCancel>Zru?iĹĄ</AlertDialogCancel>
                 <AlertDialogAction onClick={handleDeleteSaves}>
                   OdstrĂˇniĹĄ
                 </AlertDialogAction>
@@ -251,12 +251,12 @@ export default function GameDetailPage({ params }: { params: Promise<{ id: strin
               <AlertDialogHeader>
                 <AlertDialogTitle>OdstrĂˇniĹĄ hru?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  TĂˇto akcia natrvalo odstrĂˇni hru, vĹˇetky jej sĂşbory z OPFS a vĹˇetky save states.
+                  TĂˇto akcia natrvalo odstrĂˇni hru, v?etky jej sĂşbory z OPFS a v?etky save states.
                   Akciu nemoĹľno vrĂˇtiĹĄ spĂ¤ĹĄ.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>ZruĹˇiĹĄ</AlertDialogCancel>
+                <AlertDialogCancel>Zru?iĹĄ</AlertDialogCancel>
                 <AlertDialogAction onClick={handleDelete}>
                   OdstrĂˇniĹĄ
                 </AlertDialogAction>
@@ -314,7 +314,7 @@ export default function GameDetailPage({ params }: { params: Promise<{ id: strin
           <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
           <p className="text-[11px] text-muted-foreground">
             Jaňo še chce bavkac neukladĂˇ ani neposkytuje komerÄŤnĂ© hry. PouĹľĂ­vateÄľ zodpovedĂˇ za
-            vlastnĂ© sĂşbory. Hra zostĂˇva v lokĂˇlnom ĂşloĹľisku vĂˇĹˇho zariadenia.
+            vlastnĂ© sĂşbory. Hra zostĂˇva v lokĂˇlnom ĂşloĹľisku vĂˇ?ho zariadenia.
           </p>
         </div>
       </Card>

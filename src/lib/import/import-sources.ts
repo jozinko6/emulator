@@ -92,7 +92,7 @@ export async function chooseMainFile(
   const dosLauncher = findDosLauncher(archiveEntriesFromSources(files));
   if (dosLauncher.requiresUserSelection) {
     return {
-      mainFile: dosLauncher.candidates[0],
+      mainFile: "",
       platform: "dos",
       requiresLauncherSelection: true,
       launcherCandidates: dosLauncher.candidates,

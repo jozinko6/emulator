@@ -4,18 +4,25 @@
 // 3. Copy public/ contents (PWA icons, manifest, emulator-assets) into dist/
 //    so Capacitor bundles everything into the APK for offline use.
 import { execSync } from "node:child_process";
-import { existsSync, cpSync, mkdirSync } from "node:fs";
+import { existsSync, cpSync } from "node:fs";
 import { join } from "node:path";
 
 const root = process.cwd();
 const shellDir = join(root, "android-shell");
 const distDir = join(shellDir, "dist");
 const publicDir = join(root, "public");
+const manifestPath = join(publicDir, "emulator-assets", "emulator-assets.manifest.json");
 
 if (!existsSync(shellDir)) {
   console.error(`[android:web] android-shell/ directory not found at ${shellDir}`);
   process.exit(1);
 }
+
+if (!existsSync(manifestPath)) {
+  console.error("[android:web] Missing emulator asset manifest. Run `npm run setup:cores` before building the Android shell.");
+  process.exit(1);
+}
+execSync("npm run verify:cores", { stdio: "inherit", cwd: root });
 
 console.log("[android:web] Installing android-shell dependencies...");
 execSync("npm install", { stdio: "inherit", cwd: shellDir });
